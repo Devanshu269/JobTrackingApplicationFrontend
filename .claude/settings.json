@@ -1,0 +1,23 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(node /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad/verify-favicon2.mjs /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad)",
+      "Bash(node /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad/verify-bear.mjs /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad)",
+      "Bash(python3 -)",
+      "Bash(npm run *)",
+      "Bash(node /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad/v2.mjs /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad)",
+      "Bash(lsof -ti:5173 -sTCP:LISTEN)",
+      "Bash(xargs -r kill)",
+      "Bash(nohup npm run dev)",
+      "Bash(disown)",
+      "Bash(curl -sf http://localhost:5173)",
+      "Bash(break)",
+      "Bash(curl -s \"http://localhost:5173/src/index.css?direct\" -o /tmp/jj.css)",
+      "Read(//tmp/**)",
+      "Bash(node __TRACKED_VAR__/dbg3.mjs)",
+      "Bash(sed -i '' -e 's/translateX\\(2px\\)/translateX\\(0px\\)/' -e 's/translateX\\(26px\\)/translateX\\(28px\\)/' /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad/v3.mjs)",
+      "Bash(node /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad/v3.mjs /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad)",
+      "Bash(sed -i '' 's/translateX\\(0px\\)/translateX\\(7px\\)/' /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad/v3.mjs)"
+    ]
+  }
+}
