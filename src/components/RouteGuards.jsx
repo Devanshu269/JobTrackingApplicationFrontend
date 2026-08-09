@@ -16,7 +16,7 @@ export function PublicOnlyRoute({ children }) {
   const { isAuthenticated, loading } = useAuth()
 
   if (loading) return <FullPageSpinner label="Checking your session" />
-  if (isAuthenticated) return <Navigate to="/dashboard" replace />
+  if (isAuthenticated) return <Navigate to="/JobJuggler/dashboard" replace />
   return children
 }
 
@@ -25,5 +25,5 @@ export function RootRedirect() {
   const { isAuthenticated, loading } = useAuth()
 
   if (loading) return <FullPageSpinner label="Restoring your session" />
-  return <Navigate to={isAuthenticated ? '/dashboard' : '/login'} replace />
+  return <Navigate to={isAuthenticated ? '/JobJuggler/dashboard' : '/login'} replace />
 }

@@ -60,6 +60,10 @@
   --animate-ring: ring 4s ease-in-out infinite;
   --animate-aurora: aurora 22s ease-in-out infinite;
   --animate-lock-pulse: lock-pulse 620ms cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-shimmer: shimmer 2s linear infinite;
+  --animate-pulse-glow: pulse-glow 1.5s ease-in-out infinite;
+  --animate-slide-left: slide-left 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
+  --animate-slide-right: slide-right 0.3s cubic-bezier(0.22, 1, 0.36, 1) both;
 
   @keyframes fade-in {
     from {
@@ -185,6 +189,44 @@
       transform: rotate(5deg);
     }
   }
+  /* Dashboard-specific keyframes */
+  @keyframes shimmer {
+    0% {
+      background-position: -200% 0;
+    }
+    100% {
+      background-position: 200% 0;
+    }
+  }
+  @keyframes pulse-glow {
+    0%,
+    100% {
+      box-shadow: 0 0 0 0 var(--glow-color, rgba(124, 107, 245, 0.4));
+    }
+    50% {
+      box-shadow: 0 0 16px 4px var(--glow-color, rgba(124, 107, 245, 0.15));
+    }
+  }
+  @keyframes slide-left {
+    from {
+      opacity: 0;
+      transform: translateX(12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
+  @keyframes slide-right {
+    from {
+      opacity: 0;
+      transform: translateX(-12px);
+    }
+    to {
+      opacity: 1;
+      transform: translateX(0);
+    }
+  }
 }
 
 html {
@@ -232,6 +274,41 @@ body {
   background-size: 58px 58px;
   -webkit-mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 100%);
   mask-image: radial-gradient(ellipse 70% 60% at 50% 40%, #000 30%, transparent 100%);
+}
+
+/* Glassmorphic card surface — used extensively in the dashboard. */
+.glass-card {
+  background: rgba(18, 18, 31, 0.6);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 12px;
+}
+
+/* Pulsing glow when a Kanban column is a valid drop target. */
+.kanban-drop-glow {
+  animation: pulse-glow 1.5s ease-in-out infinite;
+  border-color: var(--color-primary) !important;
+  background: rgba(124, 107, 245, 0.06);
+}
+
+/* Thin custom scrollbar for Kanban columns and sidebars. */
+.scrollbar-thin {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+.scrollbar-thin::-webkit-scrollbar {
+  width: 5px;
+}
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 99px;
+}
+.scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
 }
 
 /* Carousel progress bar. Kept out of the reduced-motion override below because

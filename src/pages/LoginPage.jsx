@@ -169,7 +169,7 @@ export default function LoginPage() {
       } else {
         await login(fields.email, fields.password)
       }
-      navigate('/dashboard')
+      navigate('/JobJuggler/dashboard')
     } catch (err) {
       setError(
         getApiErrorMessage(

@@ -30,7 +30,7 @@ export default function OAuthRedirectPage() {
     exchanged.current = true
 
     exchangeOAuthCode(code)
-      .then(() => navigate('/dashboard', { replace: true }))
+      .then(() => navigate('/JobJuggler/dashboard', { replace: true }))
       .catch((err) => setError(getApiErrorMessage(err, 'Login failed. Please try again.')))
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
