@@ -14,8 +14,24 @@ export function checkEmail(value) {
   return EMAIL_RE.test(trimmed) ? 'valid' : 'invalid'
 }
 
+/**
+ * Password policy for *setting* a password (signup, reset, change).
+ *
+ * The length rule is bounded at both ends on purpose. The backend enforces
+ * `@Size(min = 8, max = 64)`, and a client rule with no ceiling is worse than no rule at all:
+ * a 70-character passphrase would light up every checkmark, then come back as a 400 on a field
+ * the form had just declared valid. The complexity rules below are client-only — the backend
+ * has none — which is safe because stricter-on-the-client never produces a surprise rejection.
+ */
+export const PASSWORD_MIN_LENGTH = 8
+export const PASSWORD_MAX_LENGTH = 64
+
 export const PASSWORD_RULES = [
-  { id: 'length', label: '8+ characters', test: (v) => v.length >= 8 },
+  {
+    id: 'length',
+    label: `${PASSWORD_MIN_LENGTH}–${PASSWORD_MAX_LENGTH} characters`,
+    test: (v) => v.length >= PASSWORD_MIN_LENGTH && v.length <= PASSWORD_MAX_LENGTH,
+  },
   { id: 'case', label: 'Upper & lowercase', test: (v) => /[a-z]/.test(v) && /[A-Z]/.test(v) },
   { id: 'number', label: 'A number', test: (v) => /\d/.test(v) },
   { id: 'symbol', label: 'A symbol', test: (v) => /[^A-Za-z0-9]/.test(v) },

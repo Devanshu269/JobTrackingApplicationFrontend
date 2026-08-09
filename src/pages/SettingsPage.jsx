@@ -1,157 +1,68 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { MOCK_USER } from '../data/mockUser'
+import { updateProfile, setDefaultResume, clearDefaultResume, changePassword } from '../lib/userApi'
+import { getApiErrorMessage, getApiFieldErrors } from '../lib/api'
+import { checkPassword, PASSWORD_RULES } from '../lib/validation'
 import { Button } from '../components/ui/Button'
-import { TextField } from '../components/ui/TextField'
+import { Field, Input } from '../components/ui/Modal'
 import { Alert } from '../components/ui/Alert'
 
 export default function SettingsPage() {
-  const { user, logout, logoutAll } = useAuth()
-  const displayUser = user || MOCK_USER
+  const { user, logout, logoutAll, applyUser } = useAuth()
+  const navigate = useNavigate()
 
-  const isLocal = displayUser.provider === 'LOCAL'
+  if (!user) return null
 
-  const [currentPassword, setCurrentPassword] = useState('')
-  const [newPassword, setNewPassword] = useState('')
-  const [confirmPassword, setConfirmPassword] = useState('')
-  const [passwordError, setPasswordError] = useState('')
-  const [passwordSuccess, setPasswordSuccess] = useState('')
-  const [changingPassword, setChangingPassword] = useState(false)
+  const isLocal = user.provider === 'LOCAL'
+  const initials = `${(user.userFirstName || 'U')[0]}${(user.userLastName || '')[0] || ''}`.toUpperCase()
 
-  async function handleChangePassword(e) {
-    e.preventDefault()
-    setPasswordError('')
-    setPasswordSuccess('')
-
-    if (newPassword !== confirmPassword) {
-      setPasswordError('Passwords do not match.')
-      return
-    }
-
-    setChangingPassword(true)
-    try {
-      // TODO: Wire up to real API endpoint once backend is ready
-      // await api.post('/api/auth/change-password', { currentPassword, newPassword })
-      // Simulate success for now
-      await new Promise((resolve) => setTimeout(resolve, 800))
-      setPasswordSuccess('Password changed successfully.')
-      setCurrentPassword('')
-      setNewPassword('')
-      setConfirmPassword('')
-    } catch {
-      setPasswordError('Failed to change password. Please try again.')
-    } finally {
-      setChangingPassword(false)
-    }
+  async function handleLogout() {
+    await logout()
+    navigate('/login')
   }
 
-  const initials = `${(displayUser.userFirstName || 'U')[0]}${(displayUser.userLastName || '')[0] || ''}`.toUpperCase()
+  async function handleLogoutAll() {
+    await logoutAll()
+    navigate('/login')
+  }
 
   return (
     <div className="mx-auto max-w-3xl animate-fade-in">
       <div className="mb-8">
         <h1 className="text-2xl font-bold tracking-tight text-text">Settings</h1>
-        <p className="mt-1 text-sm text-text-muted">
-          Manage your account and preferences.
-        </p>
+        <p className="mt-1 text-sm text-text-muted">Manage your account and preferences.</p>
       </div>
 
-      {/* Profile Section */}
-      <section className="glass-card p-6">
-        <h2 className="text-sm font-semibold text-text">Profile</h2>
-        <div className="mt-5 flex items-center gap-5">
-          <span className="bg-brand flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-bold text-on-primary">
-            {initials}
-          </span>
-          <div>
-            <p className="text-lg font-semibold text-text">
-              {displayUser.userFirstName} {displayUser.userLastName}
-            </p>
-            <p className="text-sm text-text-muted">{displayUser.email}</p>
-            <span className="mt-1.5 inline-block rounded-full border border-border/60 bg-surface-alt px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
-              {displayUser.provider === 'LOCAL' ? 'Email account' : `${displayUser.provider} account`}
-            </span>
-          </div>
-        </div>
-      </section>
+      <ProfileSection user={user} initials={initials} applyUser={applyUser} />
 
-      {/* Change Password — only for LOCAL provider */}
-      {isLocal && (
-        <section className="mt-6 glass-card p-6">
-          <h2 className="text-sm font-semibold text-text">Change Password</h2>
-          <p className="mt-1 text-[11px] text-text-muted">
-            Update the password for your email account.
-          </p>
-          <form onSubmit={handleChangePassword} className="mt-5 flex flex-col gap-4">
-            <Alert variant="error">{passwordError}</Alert>
-            <Alert variant="success">{passwordSuccess}</Alert>
-            <TextField
-              id="currentPassword"
-              label="Current password"
-              type="password"
-              autoComplete="current-password"
-              required
-              value={currentPassword}
-              onChange={(e) => setCurrentPassword(e.target.value)}
-            />
-            <TextField
-              id="newPassword"
-              label="New password"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={newPassword}
-              onChange={(e) => setNewPassword(e.target.value)}
-            />
-            <TextField
-              id="confirmNewPassword"
-              label="Confirm new password"
-              type="password"
-              autoComplete="new-password"
-              required
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-            />
-            <Button type="submit" loading={changingPassword} className="mt-1 w-auto self-start px-6">
-              {changingPassword ? 'Changing…' : 'Change password'}
-            </Button>
-          </form>
-        </section>
-      )}
+      <DefaultResumeSection user={user} applyUser={applyUser} />
 
-      {/* OAuth notice */}
-      {!isLocal && (
+      {isLocal ? (
+        <ChangePasswordSection />
+      ) : (
         <section className="mt-6 glass-card p-6">
           <h2 className="text-sm font-semibold text-text">Password</h2>
           <p className="mt-2 text-sm text-text-muted">
-            Your account is linked to <span className="font-medium text-text">{displayUser.provider}</span>.
-            Password management is handled by your OAuth provider.
+            Your account is linked to <span className="font-medium text-text">{user.provider}</span>.
+            Password management is handled by your provider — there is no local password to change.
           </p>
         </section>
       )}
 
-      {/* Notification Preferences (placeholder) */}
-      <section className="mt-6 glass-card p-6">
-        <h2 className="text-sm font-semibold text-text">Notifications</h2>
-        <p className="mt-1 text-[11px] text-text-muted">Configure what notifications you receive.</p>
-        <div className="mt-5 flex flex-col gap-4">
-          <ToggleRow label="Interview reminders" description="Get reminded 1 hour before scheduled interviews" defaultOn />
-          <ToggleRow label="Application follow-ups" description="Nudge when an application has been silent for 5+ days" defaultOn />
-          <ToggleRow label="Weekly summary" description="Receive a weekly digest of your job search progress" defaultOn={false} />
-        </div>
-      </section>
-
-      {/* Session Management */}
+      {/* Sessions */}
       <section className="mt-6 glass-card p-6">
         <h2 className="text-sm font-semibold text-text">Sessions</h2>
-        <p className="mt-1 text-[11px] text-text-muted">Manage your active sessions.</p>
+        <p className="mt-1 text-[11px] text-text-muted">
+          Logging out everywhere revokes every refresh token, signing you out on all devices.
+        </p>
         <div className="mt-5 flex flex-wrap gap-3">
-          <Button variant="ghost" onClick={logout} className="w-auto px-5 py-2 text-sm">
+          <Button variant="ghost" onClick={handleLogout} className="w-auto px-5 py-2 text-sm">
             Log out this device
           </Button>
           <button
             type="button"
-            onClick={logoutAll}
+            onClick={handleLogoutAll}
             className="rounded-md border border-danger/40 bg-danger/10 px-5 py-2 text-sm font-medium text-danger transition-all duration-200 hover:bg-danger/20"
           >
             Log out all devices
@@ -162,29 +73,323 @@ export default function SettingsPage() {
   )
 }
 
-function ToggleRow({ label, description, defaultOn = true }) {
-  const [on, setOn] = useState(defaultOn)
+function ProfileSection({ user, initials, applyUser }) {
+  const [firstName, setFirstName] = useState(user.userFirstName ?? '')
+  const [lastName, setLastName] = useState(user.userLastName ?? '')
+  const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl ?? '')
+  const [fieldErrors, setFieldErrors] = useState({})
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  useEffect(() => {
+    setFirstName(user.userFirstName ?? '')
+    setLastName(user.userLastName ?? '')
+    setAvatarUrl(user.avatarUrl ?? '')
+  }, [user])
+
+  const dirty =
+    firstName !== (user.userFirstName ?? '') ||
+    lastName !== (user.userLastName ?? '') ||
+    avatarUrl !== (user.avatarUrl ?? '')
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+
+    // Mirrors the backend's @Size(min = 3, max = 20). Checked here because the API silently
+    // ignores a null field — an empty box would look like "no change" rather than an error.
+    const errors = {}
+    if (firstName.trim().length < 3 || firstName.trim().length > 20) {
+      errors.firstName = 'First name must be between 3 and 20 characters.'
+    }
+    if (lastName.trim().length < 3 || lastName.trim().length > 20) {
+      errors.lastName = 'Last name must be between 3 and 20 characters.'
+    }
+    setFieldErrors(errors)
+    if (Object.keys(errors).length > 0) return
+
+    setSaving(true)
+    try {
+      const updated = await updateProfile({ firstName, lastName, avatarUrl })
+      applyUser(updated)
+      setSuccess('Profile updated.')
+    } catch (err) {
+      const apiFieldErrors = getApiFieldErrors(err)
+      if (apiFieldErrors) setFieldErrors(apiFieldErrors)
+      setError(getApiErrorMessage(err, 'Could not update your profile.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
   return (
-    <div className="flex items-start justify-between gap-4">
-      <div>
-        <p className="text-sm font-medium text-text">{label}</p>
-        <p className="text-[11px] text-text-muted">{description}</p>
+    <section className="glass-card p-6">
+      <h2 className="text-sm font-semibold text-text">Profile</h2>
+
+      <div className="mt-5 flex items-center gap-5">
+        {user.avatarUrl ? (
+          <img
+            src={user.avatarUrl}
+            alt=""
+            className="h-16 w-16 shrink-0 rounded-full object-cover"
+          />
+        ) : (
+          <span className="bg-brand flex h-16 w-16 shrink-0 items-center justify-center rounded-full text-xl font-bold text-on-primary">
+            {initials}
+          </span>
+        )}
+        <div>
+          <p className="text-lg font-semibold text-text">
+            {user.userFirstName} {user.userLastName}
+          </p>
+          <p className="text-sm text-text-muted">{user.email}</p>
+          <span className="mt-1.5 inline-block rounded-full border border-border/60 bg-surface-alt px-2.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-text-muted">
+            {user.provider === 'LOCAL' ? 'Email account' : `${user.provider} account`}
+          </span>
+        </div>
       </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={on}
-        onClick={() => setOn((v) => !v)}
-        className={`relative mt-0.5 h-6 w-10 shrink-0 rounded-full transition-colors duration-200 ${
-          on ? 'bg-primary' : 'bg-border'
-        }`}
-      >
-        <span
-          className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white shadow transition-transform duration-200 ${
-            on ? 'translate-x-4' : 'translate-x-0'
-          }`}
-        />
-      </button>
-    </div>
+
+      <form onSubmit={handleSubmit} className="mt-6 flex flex-col gap-4">
+        <Alert variant="error">{error}</Alert>
+        <Alert variant="success">{success}</Alert>
+
+        <div className="grid gap-4 sm:grid-cols-2">
+          <Field label="First name" htmlFor="firstName" error={fieldErrors.firstName}>
+            <Input
+              id="firstName"
+              value={firstName}
+              onChange={(e) => setFirstName(e.target.value)}
+              error={fieldErrors.firstName}
+              maxLength={20}
+            />
+          </Field>
+          <Field label="Last name" htmlFor="lastName" error={fieldErrors.lastName}>
+            <Input
+              id="lastName"
+              value={lastName}
+              onChange={(e) => setLastName(e.target.value)}
+              error={fieldErrors.lastName}
+              maxLength={20}
+            />
+          </Field>
+        </div>
+
+        <Field
+          label="Avatar URL"
+          htmlFor="avatarUrl"
+          hint="A link to an image — there is no file upload yet."
+          error={fieldErrors.avatarUrl}
+        >
+          <Input
+            id="avatarUrl"
+            value={avatarUrl}
+            onChange={(e) => setAvatarUrl(e.target.value)}
+            placeholder="https://…"
+          />
+        </Field>
+
+        <Button
+          type="submit"
+          loading={saving}
+          disabled={!dirty}
+          className="mt-1 w-auto self-start px-6 py-2 text-sm"
+        >
+          {saving ? 'Saving…' : 'Save profile'}
+        </Button>
+      </form>
+    </section>
+  )
+}
+
+function DefaultResumeSection({ user, applyUser }) {
+  const [resumeUrl, setResumeUrl] = useState(user.defaultResumeUrl ?? '')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    setResumeUrl(user.defaultResumeUrl ?? '')
+  }, [user])
+
+  async function handleSave(e) {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+    if (!resumeUrl.trim()) {
+      setError('Enter a URL, or use Remove to clear it.')
+      return
+    }
+    setBusy(true)
+    try {
+      applyUser(await setDefaultResume(resumeUrl.trim()))
+      setSuccess('Default resume saved.')
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Could not save your default resume.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  async function handleClear() {
+    setError('')
+    setSuccess('')
+    setBusy(true)
+    try {
+      applyUser(await clearDefaultResume())
+      setSuccess('Default resume removed.')
+    } catch (err) {
+      setError(getApiErrorMessage(err, 'Could not remove your default resume.'))
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  return (
+    <section className="mt-6 glass-card p-6">
+      <h2 className="text-sm font-semibold text-text">Default resume</h2>
+      <p className="mt-1 text-[11px] text-text-muted">
+        Used to prefill the resume link when you add a new application.
+      </p>
+
+      <form onSubmit={handleSave} className="mt-5 flex flex-col gap-4">
+        <Alert variant="error">{error}</Alert>
+        <Alert variant="success">{success}</Alert>
+
+        <Field label="Resume URL" htmlFor="defaultResumeUrl">
+          <Input
+            id="defaultResumeUrl"
+            value={resumeUrl}
+            onChange={(e) => setResumeUrl(e.target.value)}
+            placeholder="https://…"
+          />
+        </Field>
+
+        <div className="flex flex-wrap gap-3">
+          <Button type="submit" loading={busy} className="w-auto px-6 py-2 text-sm">
+            Save
+          </Button>
+          {user.defaultResumeUrl && (
+            <Button
+              type="button"
+              variant="ghost"
+              onClick={handleClear}
+              disabled={busy}
+              className="w-auto px-5 py-2 text-sm"
+            >
+              Remove
+            </Button>
+          )}
+        </div>
+      </form>
+    </section>
+  )
+}
+
+function ChangePasswordSection() {
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [error, setError] = useState('')
+  const [success, setSuccess] = useState('')
+  const [saving, setSaving] = useState(false)
+
+  const strength = checkPassword(newPassword)
+
+  async function handleSubmit(e) {
+    e.preventDefault()
+    setError('')
+    setSuccess('')
+
+    if (newPassword !== confirmPassword) {
+      setError('Passwords do not match.')
+      return
+    }
+    if (strength.status !== 'valid') {
+      setError('Choose a stronger password — see the requirements below.')
+      return
+    }
+
+    setSaving(true)
+    try {
+      await changePassword({ currentPassword, newPassword })
+      setSuccess('Password changed. Other devices stay signed in until their sessions expire.')
+      setCurrentPassword('')
+      setNewPassword('')
+      setConfirmPassword('')
+    } catch (err) {
+      // 401 covers both a wrong current password and a non-LOCAL account; the backend's
+      // message distinguishes them, so surface it rather than inventing one.
+      setError(getApiErrorMessage(err, 'Could not change your password.'))
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <section className="mt-6 glass-card p-6">
+      <h2 className="text-sm font-semibold text-text">Change password</h2>
+      <p className="mt-1 text-[11px] text-text-muted">Update the password for your email account.</p>
+
+      <form onSubmit={handleSubmit} className="mt-5 flex flex-col gap-4">
+        <Alert variant="error">{error}</Alert>
+        <Alert variant="success">{success}</Alert>
+
+        <Field label="Current password" htmlFor="currentPassword">
+          <Input
+            id="currentPassword"
+            type="password"
+            autoComplete="current-password"
+            required
+            value={currentPassword}
+            onChange={(e) => setCurrentPassword(e.target.value)}
+          />
+        </Field>
+
+        <Field label="New password" htmlFor="newPassword">
+          <Input
+            id="newPassword"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={newPassword}
+            onChange={(e) => setNewPassword(e.target.value)}
+          />
+        </Field>
+
+        {newPassword && (
+          <ul className="flex flex-wrap gap-x-4 gap-y-1.5">
+            {PASSWORD_RULES.map((rule) => {
+              const met = strength.met.includes(rule.id)
+              return (
+                <li
+                  key={rule.id}
+                  className={`flex items-center gap-1.5 text-[11px] ${met ? 'text-accent' : 'text-text-muted'}`}
+                >
+                  <span aria-hidden="true">{met ? '✓' : '○'}</span>
+                  {rule.label}
+                </li>
+              )
+            })}
+          </ul>
+        )}
+
+        <Field label="Confirm new password" htmlFor="confirmNewPassword">
+          <Input
+            id="confirmNewPassword"
+            type="password"
+            autoComplete="new-password"
+            required
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+          />
+        </Field>
+
+        <Button type="submit" loading={saving} className="mt-1 w-auto self-start px-6 py-2 text-sm">
+          {saving ? 'Changing…' : 'Change password'}
+        </Button>
+      </form>
+    </section>
   )
 }

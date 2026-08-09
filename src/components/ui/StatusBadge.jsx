@@ -1,11 +1,12 @@
-import { JOB_STATUSES } from '../../data/mockJobs'
+import { JOB_STATUSES } from '../../data/jobConstants'
 
+// Keyed by the backend Status enum, same as JOB_STATUSES.
 const statusStyles = {
-  wishlist: 'bg-[#a855f7]/15 text-[#c084fc] border-[#a855f7]/30',
-  applied: 'bg-[#6366f1]/15 text-[#818cf8] border-[#6366f1]/30',
-  interview: 'bg-accent/15 text-accent border-accent/30',
-  offer: 'bg-success/15 text-success border-success/30',
-  rejected: 'bg-danger/15 text-danger border-danger/30',
+  WISHLIST: 'bg-[#a855f7]/15 text-[#c084fc] border-[#a855f7]/30',
+  APPLIED: 'bg-[#6366f1]/15 text-[#818cf8] border-[#6366f1]/30',
+  INTERVIEW: 'bg-accent/15 text-accent border-accent/30',
+  OFFER: 'bg-success/15 text-success border-success/30',
+  REJECTED: 'bg-danger/15 text-danger border-danger/30',
 }
 
 export function StatusBadge({ status, className = '' }) {

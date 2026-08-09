@@ -17,7 +17,30 @@
       "Bash(node __TRACKED_VAR__/dbg3.mjs)",
       "Bash(sed -i '' -e 's/translateX\\(2px\\)/translateX\\(0px\\)/' -e 's/translateX\\(26px\\)/translateX\\(28px\\)/' /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad/v3.mjs)",
       "Bash(node /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad/v3.mjs /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad)",
-      "Bash(sed -i '' 's/translateX\\(0px\\)/translateX\\(7px\\)/' /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad/v3.mjs)"
+      "Bash(sed -i '' 's/translateX\\(0px\\)/translateX\\(7px\\)/' /private/tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/69670bd8-2e3b-4537-8f47-4724c7f46a7a/scratchpad/v3.mjs)",
+      "Bash(cd ../JobTrackingApplicationBackend && find src/main/java -name '*.java' | sort)",
+      "Read(//Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/**)",
+      "Read(//Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/enums/**)",
+      "Read(//Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/model/**)",
+      "Read(//Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/Utils/**)",
+      "Read(//Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/dto/**)",
+      "Read(//Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/repository/**)",
+      "Read(//Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/controller/**)",
+      "Read(//Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/service/**)",
+      "Read(//Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/security/**)",
+      "Bash(./mvnw -q -o compile)",
+      "Bash(./mvnw -q compile)",
+      "Bash(ps -o command= -p 37831)",
+      "Bash(curl -s -w '\\\\n%{http_code}\\\\n' -X POST http://localhost:8080/jobTracking/api/auth/signup -H 'Content-Type: application/json' -d '{\"userFirstName\":\"Long\",\"userLastName\":\"Passphrase\",\"email\":\"longpw+__CMDSUB_OUTPUT__@example.com\",\"password\":\"CorrectHorseBattery1!\"}')",
+      "Bash(python3 -m json.tool)",
+      "Read(//tmp/claude-501/-Users-n1k0zy-Documents-GitHub-JobTrackingApplication-JobTrackingApplicationFrontend/ae669eab-5ac4-47d3-991f-dc9a28b59d1c/scratchpad/**)"
+    ],
+    "additionalDirectories": [
+      "/Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/dto",
+      "/Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/repository",
+      "/Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/Utils",
+      "/Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/service",
+      "/Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/controller"
     ]
   }
 }

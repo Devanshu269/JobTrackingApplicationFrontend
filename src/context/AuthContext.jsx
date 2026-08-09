@@ -83,6 +83,9 @@ export function AuthProvider({ children }) {
     logout,
     logoutAll,
     refreshUser: loadUser,
+    // Every /api/users/me* endpoint returns the updated UserDto, so callers can push it
+    // straight into context instead of paying for another /me round trip.
+    applyUser: setUser,
   }
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>

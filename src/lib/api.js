@@ -77,3 +77,20 @@ api.interceptors.response.use(
 export function getApiErrorMessage(error, fallback = 'Something went wrong. Please try again.') {
   return error?.response?.data?.message || fallback
 }
+
+/**
+ * The field-name → message map from a 400, or null.
+ *
+ * Populated for two different failure modes, which is worth knowing because they carry
+ * different top-level messages:
+ *   - bean validation  → `message: "Validation failed"`,      e.g. `{ password: "…8 and 64…" }`
+ *   - unparseable enum → `message: "Malformed request body"`, e.g.
+ *     `{ status: "Invalid value 'NOT_A_STATUS'. Expected one of: [WISHLIST, …]" }`
+ *
+ * Still returns null for a 401/404/409 or a body Spring couldn't attribute to a field, so
+ * callers must fall back to the top-level message rather than assume a map is present.
+ */
+export function getApiFieldErrors(error) {
+  const errors = error?.response?.data?.errors
+  return errors && typeof errors === 'object' ? errors : null
+}

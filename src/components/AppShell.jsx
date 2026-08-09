@@ -2,7 +2,6 @@ import { useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from './ui/Logo'
-import { MOCK_USER } from '../data/mockUser'
 
 const NAV_ITEMS = [
   {
@@ -54,8 +53,10 @@ export function AppShell() {
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
 
-  const displayUser = user || MOCK_USER
-  const initials = `${(displayUser.userFirstName || 'U')[0]}${(displayUser.userLastName || '')[0] || ''}`.toUpperCase()
+  // No mock fallback: AppShell only renders inside ProtectedRoute, which waits for /me to
+  // resolve. A missing user here means a real failure and should look like one, not silently
+  // render a placeholder identity.
+  const initials = `${(user?.userFirstName || 'U')[0]}${(user?.userLastName || '')[0] || ''}`.toUpperCase()
 
   async function handleLogout() {
     await logout()
@@ -198,9 +199,9 @@ export function AppShell() {
                     {/* User info */}
                     <div className="border-b border-border/40 px-3 pb-2.5 pt-1.5">
                       <p className="text-sm font-medium text-text">
-                        {displayUser.userFirstName} {displayUser.userLastName}
+                        {user?.userFirstName} {user?.userLastName}
                       </p>
-                      <p className="truncate text-[11px] text-text-muted">{displayUser.email}</p>
+                      <p className="truncate text-[11px] text-text-muted">{user?.email}</p>
                     </div>
                     {/* Logout */}
                     <button

@@ -2,10 +2,13 @@
 
 The contract between this frontend and `JobTrackingApplicationBackend`. The backend must be running locally on port 8080 for any of this to work.
 
-> **Status (2026-08-09).**
+> **Status (2026-08-09, updated after the mock → API migration).**
 > - **Backend:** every endpoint documented here is built and manually exercised against a running server and real MySQL — including cross-user isolation checks with a second account. Behaviour below is verified, not aspirational.
-> - **Frontend:** the UI is well along — landing/explore, login/signup, OAuth2 redirect, forgot/reset password, dashboard, applications (table + kanban), analytics, and settings pages all exist. **Auth is wired to the real API; everything else runs on mock data** from `src/data/`.
-> - **The remaining work is a data-layer swap, not new UI.** And it isn't a straight substitution — the mock shapes and the API shapes differ in naming, casing, date format, and structure, and three dashboard features have no backend behind them at all. See **[Mock → API migration](#mock--api-migration)**, which is the section to read before touching anything.
+> - **Frontend: the migration is done. There is no mock data left in the app.** `src/data/mockJobs.js`, `mockStats.js` and `mockUser.js` have been deleted; the UI-config constants that used to live in `mockJobs.js` now live in [src/data/jobConstants.js](src/data/jobConstants.js), rekeyed to the backend's enum values.
+> - **Every page reads the live API:** dashboard, applications (table + kanban), job detail with interview rounds, analytics, and settings.
+> - Auth was verified end-to-end against the running backend before anything was built on top of it — signup, duplicate-email 409, login, wrong-password 401, `/me`, refresh (including `refreshToken: null`), bad-refresh 401, bogus exchange-code 401, and both OAuth2 authorize redirects. The only untested path is the interactive Google/GitHub consent screen, which needs real credentials in a browser.
+>
+> See **[What the migration changed](#what-the-migration-changed)** for the field-by-field record and the decisions taken along the way.
 
 ## Project setup
 
@@ -16,7 +19,11 @@ npm install
 npm run dev
 ```
 
-Vite's default dev port is **5173**, which matters because the backend's CORS and OAuth2 redirect config is already pointed at `http://localhost:5173`. If port 5173 is already taken by something else on your machine and Vite silently starts on 5174 instead, OAuth2 login and CORS will both break — check the terminal output when you run `npm run dev` to confirm which port it actually picked.
+Vite's dev port is **5173**, which matters because the backend's CORS and OAuth2 redirect config is pointed at `http://localhost:5173`.
+
+Good news, verified: this project sets `strictPort`, so if 5173 is occupied Vite **fails to start** with `Port 5173 is already in use` rather than silently sliding to 5174 and breaking CORS and OAuth in a way that's confusing to debug. If you see that error, something else is already serving the app — find it rather than starting a second one on another port.
+
+CORS is confirmed working from that origin: a preflight to `/api/jobs` returns `Access-Control-Allow-Origin: http://localhost:5173` with `GET,POST,PUT,DELETE,PATCH,OPTIONS` and the `authorization` header allowed.
 
 ## Base URL
 
@@ -33,14 +40,19 @@ VITE_API_BASE_URL=http://localhost:8080/jobTracking
 
 Normal JSON API calls (`fetch`/axios) — attach `Authorization: Bearer <token>` for the ones marked **auth required**:
 
-### Password rules (backend's actual policy — verified against the DTOs)
+### Password rules (verified live against a running server)
 
-Every password field in the API — signup, change-password, reset-password — enforces exactly:
+Every password field that **sets** a password — signup, change-password's `newPassword`, reset-password — enforces:
 
 - **`@NotBlank`** — cannot be empty or whitespace-only
-- **`@Size(min = 4, max = 12)`** — between 4 and 12 characters
+- **`@Size(min = 8, max = 64)`** — between 8 and 64 characters
 
-**There are no complexity requirements** (no mixed case, digit, or symbol rule) and, importantly, **there is a hard 12-character maximum**. See the [password-rules mismatch](#client-side-password-rules-contradict-the-backend) note at the bottom — the current client-side validation disagrees with this and will let users submit passwords the backend rejects.
+**There are no complexity requirements server-side** (no mixed case, digit, or symbol rule). The client adds its own advisory complexity rules on top; see [password rules, reconciled](#password-rules-reconciled).
+
+`change-password`'s **`currentPassword` has `@NotBlank` only, deliberately no `@Size`.** It is an existing password being checked, not a new one being set — length-validating it would permanently lock out any account created under the old 4-character minimum.
+
+> Changed from `@Size(min = 4, max = 12)`. The old ceiling was the more urgent half of the problem: 12 characters blocks passphrases and password managers for no security benefit, since the column stores a fixed-length bcrypt hash either way. Verified after the change: a 20-character password returns 201, and a 5-character one returns
+> `400 { "errors": { "password": "Password must be between 8 and 64 characters" } }`.
 
 ### Shared response shapes
 
@@ -98,7 +110,7 @@ On `POST /api/auth/refresh` only, `refreshToken` comes back **`null`** — the b
 
 // 400 — validation
 { "timestamp": "...", "status": 400, "message": "Validation failed",
-  "errors": { "password": "Password must be between 4 and 12 characters" } }
+  "errors": { "password": "Password must be between 8 and 64 characters" } }
 ```
 
 **Login** — `POST /api/auth/login`
@@ -200,7 +212,8 @@ All scoped to the logged-in user automatically — you never send a userId, and 
 | `status` | Status enum | **yes** | |
 | `priority` | Priority enum | no | |
 | `jobUrl` | string | no | |
-| `location` | string | no | |
+| `location` | string | no | free text, e.g. `"San Francisco, CA"` |
+| `jobType` | JobType enum | no | `REMOTE` / `HYBRID` / `ONSITE` |
 | `salaryRange` | string | no | free text, e.g. `"20-25 LPA"` |
 | `recruiterName` | string | no | |
 | `recruiterEmail` | string | no | must be a valid email **if present** |
@@ -276,6 +289,26 @@ All scoped to the logged-in user automatically — you never send a userId, and 
 
 **`PUT` is a full replace, not a patch.** Any field you leave out is written as null. Send the whole object back — typically the untouched result of the `GET`, with your edits applied.
 
+This is the single easiest way to lose data in this API, so here is the captured proof. Starting from the created job above and sending a body with only the three required fields:
+
+```jsonc
+// PUT /api/jobs/10 — a "just change the status" request
+{ "companyName": "Acme Corp", "jobRole": "Frontend Engineer", "status": "INTERVIEW" }
+
+// 200 — everything not sent is now null
+{ "jobId": 10, "companyName": "Acme Corp", "jobRole": "Frontend Engineer", "status": "INTERVIEW",
+  "priority": null,        // was "HIGH"
+  "jobType": null,         // was "HYBRID"
+  "location": null,        // was "Remote"
+  "salaryRange": null,     // was "20-25 LPA"
+  "recruiterEmail": null,  // was "hr@acme.com"
+  "notes": null,           // was "Referred by a friend"
+  "appliedDate": null,     // was "2026-08-01T10:00:00"
+  … }
+```
+
+The frontend guards this with `toJobRequestBody()` in [src/lib/jobsApi.js](src/lib/jobsApi.js), which projects a complete job object onto exactly the request fields. Every write path — the kanban drag, the table's status dropdown, the edit form — goes through it. Don't hand-roll a `PUT` body.
+
 **`JobStatsResponseDto`:**
 ```json
 {
@@ -291,9 +324,10 @@ All five status keys are always present and zero-filled — no null checks neede
 |---|---|---|
 | `status` | `?status=APPLIED` | exact match on the Status enum |
 | `priority` | `?priority=HIGH` | exact match on the Priority enum |
+| `jobType` | `?jobType=REMOTE` | exact match on the JobType enum |
 | `search` | `?search=acme` | case-insensitive substring, matches company name **OR** job role |
 
-e.g. `/api/jobs?status=INTERVIEW&search=acme`. Omitting all three returns everything you own.
+e.g. `/api/jobs?status=INTERVIEW&jobType=REMOTE&search=acme`. Omitting all four returns everything you own. A filter combination that matches nothing returns `[]`, not a 404.
 
 ### Interview rounds
 
@@ -354,15 +388,65 @@ Nested under a job. Ownership is enforced through the parent job, so a round und
 
 Same full-replace caveat as jobs on `PUT`.
 
+### Upcoming interviews (cross-job)
+
+| Method | URL | Auth | Request body | Success | Response body |
+|---|---|---|---|---|---|
+| GET | `/api/rounds/upcoming` | **yes** | — | 200 | `UpcomingRoundResponseDto[]`, soonest first |
+
+Separate from `/api/jobs/{jobId}/rounds` because it spans **every** job you own — built specifically so a dashboard widget doesn't have to fetch rounds job-by-job. Each row carries its parent job's `companyName`/`jobRole` so no follow-up request is needed.
+
+```jsonc
+// GET /api/rounds/upcoming → 200
+[
+  {
+    "jobRoundId": 5,
+    "jobId": 8,
+    "companyName": "GitHub",
+    "jobRole": "Staff Eng",
+    "roundNumber": 1,
+    "roundType": "Technical",
+    "roundDate": "2026-08-25T10:30:00",
+    "interviewerName": null,
+    "notes": null,
+    "outcome": "PENDING"
+  },
+  { "jobRoundId": 4, "companyName": "Stripe", "roundDate": "2026-09-20T14:00:00", ... }
+]
+```
+
+Semantics worth knowing:
+- **"Upcoming" means `roundDate >= now`.** Past rounds are excluded.
+- **Rounds with a null `roundDate` are excluded** — an unscheduled round isn't upcoming.
+- Sorted by `roundDate` ascending across all jobs.
+- No rounds → `[]` with a 200, never a 404.
+
 ### Enum values (exact strings — these go over JSON as-is)
 
 - **Status:** `WISHLIST`, `APPLIED`, `INTERVIEW`, `OFFER`, `REJECTED`
 - **Priority:** `HIGH`, `MEDIUM`, `LOW`
+- **JobType:** `REMOTE`, `HYBRID`, `ONSITE`
 - **Outcome:** `ACCEPTED`, `REJECTED`, `PENDING`, `NO_RESPONSE`, `WITHDRAWN`, `OTHER`
 - **RoundType:** `Technical`, `HR`, `Managerial`, `Group`, `Coding`, `Behavioral`, `CaseStudy`, `HLD`, `LLD`, `SystemDesign`, `CultureFit`, `Other` — note these are **PascalCase**, unlike the other three enums which are UPPERCASE. Easy to get wrong; sending a value that isn't in this list returns a 400.
 - **Provider** (read-only, from `/me`): `LOCAL`, `GOOGLE`, `GITHUB`, `LINKEDIN`
 
-Sending an invalid enum string returns a `400` from Spring's JSON parser, not the usual validation-error shape — so don't assume every 400 has a populated `errors` map.
+Sending an invalid enum string returns a `400` that **names the field and lists the accepted values** — useful enough to surface directly in the UI:
+
+```jsonc
+// POST /api/jobs with { "status": "applied" }  ← lowercase, the classic mock-data mistake
+{ "timestamp": "...", "status": 400, "message": "Malformed request body",
+  "errors": { "status": "Invalid value 'applied'. Expected one of: [WISHLIST, APPLIED, INTERVIEW, OFFER, REJECTED]" } }
+
+// GET /api/jobs?jobType=BOGUS
+{ "timestamp": "...", "status": 400, "message": "Invalid request parameter",
+  "errors": { "jobType": "Invalid value 'BOGUS'. Expected one of: [REMOTE, HYBRID, ONSITE]" } }
+
+// GET /api/jobs/abc
+{ "timestamp": "...", "status": 400, "message": "Invalid request parameter",
+  "errors": { "jobId": "Invalid value 'abc'. Expected type Integer" } }
+```
+
+Genuinely malformed JSON (not just a bad value) gives `message: "Malformed request body"` with `errors: null`, so still null-check `errors`.
 
 ### Not built yet
 
@@ -375,7 +459,9 @@ Error responses (4xx) all share this shape:
 ```json
 { "timestamp": "...", "status": 401, "message": "...", "errors": null }
 ```
-`errors` is a field-name → message map, only populated on 400 validation failures.
+`errors` is a field-name → message map, populated only on 400s (bean validation, bad enum values, bad path/query types — see above). It is null on 401/404/409. Read it with `getApiFieldErrors()` from [src/lib/api.js](src/lib/api.js), which returns null when absent so callers fall back to `message`.
+
+**One exception to the shape:** a 401 raised by the security filter rather than by application code — an absent, malformed, or expired bearer token — comes back with an **empty body**, because `SecurityConfig` uses `response.sendError(...)`. There is no `message` to read, so `getApiErrorMessage()` returns its fallback string. Don't rely on `data.message` for auth-filter rejections.
 
 **404 vs 403:** asking for a job/round that belongs to another user returns `404`, not `403` — deliberately, so the API never confirms that an id exists. Don't build UI that treats 404 as "definitely deleted".
 
@@ -408,27 +494,25 @@ Where the "reset your password" email link points. Query string: `?token=<uuid>`
 
 ## Pages
 
-### Built and wired to the real API (auth only)
+Every page below is wired to the real API. There is no mock data anywhere in the app.
+
+### Auth pages
 
 - **Login page** — local email/password form, plus "Sign in with Google"/"Sign in with GitHub" links to the OAuth2 URLs above, plus a "Forgot password?" link to a forgot-password form (`POST /api/auth/forgot-password`). Built as `/login`; signup is the same page, toggled.
 - **`/oauth2/redirect`** — as described above, effectively a loading/processing screen, not something a user looks at for long.
 - **`/reset-password`** — as described above.
 - **Error page / fallback UI** — this is a separate concern from the two redirect routes above. Those two have their own specific, expected error states (bad OAuth2 code, bad reset token) that should show inline, contextual messages — not dump the user onto a generic error page. What's still worth having, separately: a top-level error boundary that catches *unexpected* frontend crashes (a bug, a null reference, something truly unhandled), so the user sees a friendly "something went wrong" screen instead of a blank white page. That's an app-wide concern, not tied to any specific backend redirect — the backend never sends anyone to a URL like `/error`.
 
-### Built on mock data — needs wiring, not building
+### App pages
 
-`DashboardPage`, `ApplicationsPage` (table + kanban), `AnalyticsPage`, `SettingsPage`, plus `JobTable`, `KanbanBoard`, `StatCard`, `StatusBadge`. See [Mock → API migration](#mock--api-migration) for the exact field deltas.
+- **Dashboard** ([DashboardPage.jsx](src/pages/DashboardPage.jsx)) — `GET /api/jobs/stats` for the tiles, `GET /api/jobs` for the mini pipeline, `GET /api/rounds/upcoming` for the interviews widget. The weekly trend is derived client-side from the jobs list.
+- **Applications** ([ApplicationsPage.jsx](src/pages/ApplicationsPage.jsx)) — `GET /api/jobs` with `status`/`priority`/`jobType`/`search` all wired to server-side query params. Search is debounced 300 ms, and a request counter discards a slow early response that would otherwise overwrite a faster later one. The list is server-ordered newest-first; the table adds no default sort of its own.
+- **Job detail** ([JobDetailPage.jsx](src/pages/JobDetailPage.jsx), route `/JobJuggler/applications/:jobId`) — `GET`/`PUT`/`DELETE /api/jobs/{jobId}` plus the full rounds CRUD. `roundNumber` isn't auto-assigned, so the UI defaults it to `max(existing) + 1` rather than `length + 1` — the two differ once a middle round has been deleted.
+- **Create / edit job** ([JobFormModal.jsx](src/components/JobFormModal.jsx)) — `POST`/`PUT /api/jobs`. New jobs prefill `resumeUrl` from `defaultResumeUrl` on `/me`.
+- **Analytics** ([AnalyticsPage.jsx](src/pages/AnalyticsPage.jsx)) — `GET /api/jobs/stats` for the funnel and donut; the trend is derived like the dashboard's.
+- **Settings** ([SettingsPage.jsx](src/pages/SettingsPage.jsx)) — `PUT /api/users/me`, change-password (only rendered when `provider === 'LOCAL'`), default-resume set/clear, logout and `logout-all`.
 
-Endpoints these map to:
-
-- **Dashboard** — `GET /api/jobs/stats` for counts, `GET /api/jobs` for a recent list.
-- **Applications** — `GET /api/jobs` with `status`/`priority`/`search` wired to the existing filter controls. Already sorted newest-first server-side, so drop any client-side sort.
-- **Job detail / edit** — `GET`, `PUT`, `DELETE /api/jobs/{jobId}`.
-- **Create job** — `POST /api/jobs`. Prefill `resumeUrl` from `defaultResumeUrl` on `/me` if set.
-- **Interview rounds** — `/api/jobs/{jobId}/rounds` on a job detail view. `roundNumber` isn't auto-assigned; the UI picks it (e.g. `rounds.length + 1`).
-- **Settings** — `PUT /api/users/me`, change-password, default-resume set/clear, `logout-all`.
-
-**Kanban drag-and-drop caveat:** `PUT` is a full replace, so moving a card can't send just `{ status }` — send the whole job object with `status` changed. Keep the full object from the list response in state so you have it to hand.
+**Kanban drag-and-drop:** handled. `KanbanBoard` passes the *whole job object* to `onStatusChange`, not just an id, so the caller can send a complete full-replace `PUT`. The move is applied optimistically and rolled back if the request fails.
 
 ## Token storage & attaching to requests
 
@@ -451,8 +535,14 @@ when a new session needs to find the call site for an endpoint.
 | OAuth2 authorization URLs | [src/pages/LoginPage.jsx](src/pages/LoginPage.jsx), rendered as `ButtonLink` (`<a>`) |
 | Bearer header | [src/lib/api.js](src/lib/api.js) — request interceptor |
 | Token persistence | [src/lib/tokenStorage.js](src/lib/tokenStorage.js) — `localStorage` |
-| Error message extraction | `getApiErrorMessage()` in [src/lib/api.js](src/lib/api.js), reads `data.message` |
+| Error message extraction | `getApiErrorMessage()` / `getApiFieldErrors()` in [src/lib/api.js](src/lib/api.js) |
 | Unexpected-crash fallback | [src/components/ErrorBoundary.jsx](src/components/ErrorBoundary.jsx), wraps the whole router |
+| All `/api/jobs*` and `/api/jobs/{id}/rounds*` calls | [src/lib/jobsApi.js](src/lib/jobsApi.js) |
+| `GET /api/rounds/upcoming` | `listUpcomingRounds()` in [src/lib/jobsApi.js](src/lib/jobsApi.js) |
+| Full-replace `PUT` body construction | `toJobRequestBody()` in [src/lib/jobsApi.js](src/lib/jobsApi.js) |
+| `PUT /api/users/me`, default-resume, change-password | [src/lib/userApi.js](src/lib/userApi.js) |
+| `LocalDateTime` ↔ `<input>` conversions, weekly trend | [src/lib/dates.js](src/lib/dates.js) |
+| Status / type / priority / round enums as UI config | [src/data/jobConstants.js](src/data/jobConstants.js) |
 
 ### Three implementation details worth knowing before you change any of this
 
@@ -472,13 +562,15 @@ tokens, only the access token is rewritten on success.
 `window.location = '/login'` would blow away in-flight React state and can loop when the user is
 already on a public page. The route guards handle the redirect instead.
 
-## Mock → API migration
+## What the migration changed
 
-The UI is built against `src/data/mockJobs.js`, `mockStats.js` and `mockUser.js`. **The mock shapes are not the API shapes** — swapping the import for a `GET` will not work. Every difference is listed below.
+**Done.** `mockJobs.js`, `mockStats.js` and `mockUser.js` are deleted. The UI-config constants that shared `mockJobs.js` were moved to [src/data/jobConstants.js](src/data/jobConstants.js) and rekeyed to the backend's exact enum strings, so API objects index into them directly with no translation layer.
+
+Kept for reference, because it explains why the field names in this repo look the way they do:
 
 ### Job object — field mapping
 
-| Mock (`INITIAL_JOBS`) | API (`JobApplicationResponseDto`) | Action |
+| Old mock (`INITIAL_JOBS`) | API (`JobApplicationResponseDto`) | Resolution |
 |---|---|---|
 | `id` | `jobId` | rename |
 | `company` | `companyName` | rename |
@@ -489,30 +581,24 @@ The UI is built against `src/data/mockJobs.js`, `mockStats.js` and `mockUser.js`
 | `notes` | `notes` | ✅ unchanged |
 | `status: 'interview'` | `status: 'INTERVIEW'` | **case change** — see below |
 | `appliedDate: '2026-07-28'` | `appliedDate: '2026-07-28T10:00:00'` | **format change** — see below |
-| `companyIcon: '💳'` | — | **no backend field** |
-| `type: 'remote' \| 'hybrid' \| 'onsite'` | — | **no backend field** |
-| `outcome: 'accepted' \| null` | — | **not on the job** — see below |
+| `companyIcon: '💳'` | — | **no backend field.** Replaced by [CompanyAvatar.jsx](src/components/ui/CompanyAvatar.jsx), a monogram tinted by a hash of the company name — deterministic, so the same company always looks the same |
+| `type: 'remote' \| 'hybrid' \| 'onsite'` | `jobType: 'REMOTE' \| 'HYBRID' \| 'ONSITE'` | ✅ **added to the backend** — rename + uppercase, and it's filterable via `?jobType=` |
+| `outcome: 'accepted' \| null` | — | **not on the job.** Dropped from the job UI; per-round outcomes are shown on the job detail page instead |
 | — | `priority` | new: `HIGH`/`MEDIUM`/`LOW`, nullable |
 | — | `recruiterName`, `recruiterEmail`, `recruiterPhone` | new, all nullable |
 | — | `resumeUrl`, `coverLetterUrl` | new, nullable |
 | — | `followUpDate`, `reminderEnabled` | new |
 | — | `createdAt`, `updatedAt` | new, server-set |
 
-### The four real problems
+### How the three real problems were resolved
 
-**1. Status casing.** `JOB_STATUSES` in `mockJobs.js` is keyed lowercase (`wishlist`, `applied`, …) and `KANBAN_COLUMNS`/`StatusBadge`/`JobTable` all index into it. The API sends `WISHLIST`, `APPLIED`, etc. Rekey `JOB_STATUSES` to the uppercase API values and update `KANBAN_COLUMNS[].statuses` to match — cleaner than translating on every read and write. Those constants are UI config, not mock data, so they should survive the migration; only `INITIAL_JOBS` goes away.
+**1. Status casing — rekeyed.** `JOB_STATUSES` and `KANBAN_COLUMNS[].statuses` now use `WISHLIST`/`APPLIED`/`INTERVIEW`/`OFFER`/`REJECTED`, and `JOB_TYPES` uses `REMOTE`/`HYBRID`/`ONSITE`. The kanban's combined column key also changed from `'offer-rejected'` to `'OFFER_REJECTED'`. Nothing translates casing at runtime, which is the point: a lookup either hits or is a visible bug, rather than quietly re-encoding on every read and write.
 
-**2. `type` (Remote / Hybrid / On-site) does not exist in the backend.** `JOB_TYPES` is rendered by both `JobTable` and `KanbanBoard`. Three options, and this is a decision to make rather than paper over:
-   - Drop the field from the UI (smallest change, loses a genuinely useful filter).
-   - Infer it from `location` — fragile, `"Remote (Canada)"` vs `"Remote"` vs `"Austin, TX"`.
-   - **Add a `JobType` enum + column to the backend** — the honest fix, ~20 minutes: new enum, field on `JobApplication`, add to the two DTOs and `JobUtils`, restart (new column, so `ddl-auto` handles it).
+**2. `outcome` on a job — dropped.** It was redundant with `status: 'OFFER' | 'REJECTED'`, and `Outcome` genuinely lives on interview rounds in the backend. Row and card accents now derive from `status` alone via `getStatusAccent()`; real per-round outcomes render on the job detail page.
 
-**3. `outcome` on a job doesn't exist either.** In the mock it's `'accepted' | 'rejected' | null` alongside `status`, which is largely redundant with `status: 'OFFER' | 'REJECTED'`. In the backend, `Outcome` lives on **interview rounds**, not on the job. Recommend dropping it from the job UI and reading per-round outcomes on a job detail page.
+**3. Dates — centralised in [src/lib/dates.js](src/lib/dates.js).** No component does date arithmetic inline. The send path is pure string manipulation and never constructs a `Date`, because `new Date('2026-08-01')` parses as **UTC** midnight while `new Date('2026-08-01T00:00:00')` parses as **local** midnight — round-tripping through a `Date` shifts the day for anyone west of UTC.
 
-**4. Dates.** API fields are `LocalDateTime` — `"2026-08-01T10:00:00"`, no timezone, no trailing `Z`. Mocks use date-only `"2026-07-28"`, and `<input type="date">` produces the same. So:
-   - **sending:** `"2026-08-01"` → `"2026-08-01T00:00:00"`
-   - **receiving:** `"2026-08-01T10:00:00"` → `.slice(0, 10)` for a date input.
-   - Don't `new Date(...)` and re-serialize — that applies the browser's timezone offset and can shift the date by a day.
+  One addition beyond the original plan: `mergeDateIntoDateTime()`. A `<input type="date">` can only express a day, so naively saving a job applied at `T10:00:00` would rewrite it to `T00:00:00` the first time anyone edited an unrelated field. The helper keeps the original clock time when the calendar day hasn't changed.
 
 ### Stats — shape change
 
@@ -525,45 +611,118 @@ The UI is built against `src/data/mockJobs.js`, `mockStats.js` and `mockUser.js`
 ```
 All five keys are always present and zero-filled, so tiles can render unconditionally.
 
-### Three dashboard features with NO backend behind them
+### Dashboard widgets without a direct endpoint
 
-These are in `mockStats.js` and currently rendered by `DashboardPage`/`AnalyticsPage`. There is no endpoint for any of them:
+These live in `mockStats.js` and are rendered by `DashboardPage`/`AnalyticsPage`:
 
-| Mock export | Status | Realistic path |
+| Mock export | Status | Path |
 |---|---|---|
-| `WEEKLY_TREND` | no endpoint | **Derive client-side** from the jobs list — bucket `appliedDate` (or `createdAt`) by day over the last 7 days. No backend work needed. |
-| `UPCOMING_INTERVIEWS` | no endpoint | Rounds are only reachable per-job (`/api/jobs/{jobId}/rounds`), so building this client-side means one request per job — an N+1. Either defer the widget, or add a backend endpoint like `GET /api/rounds/upcoming`. |
-| `RECENT_ACTIVITY` | **no table, no entity** | A real activity/audit log needs a new backend entity written on every mutation. Sizeable feature — defer it, or drop the widget. |
+| `UPCOMING_INTERVIEWS` | ✅ **live** | `GET /api/rounds/upcoming`, added for this widget. One request across all jobs, company/role flattened in, so no N+1. |
+| `WEEKLY_TREND` | ✅ **live, derived client-side** | `buildWeeklyTrend()` in [src/lib/dates.js](src/lib/dates.js) buckets the jobs list by `appliedDate` (falling back to `createdAt`) over the last 7 days. Comparison is on the `YYYY-MM-DD` prefix, so it never touches timezone conversion. No backend work needed. |
+| `RECENT_ACTIVITY` | ⚠️ **live, but derived** | Rebuilt from job `createdAt`/`updatedAt` in [src/lib/activity.js](src/lib/activity.js). Real data, real limits — see [Recent Activity](#recent-activity-derived-now-logged-later) below. |
 
-Don't silently leave these three on mock data once everything around them is live: a dashboard where four tiles are real and three are fiction is worse than one that omits them, because nobody can tell which is which.
+The mock's `UPCOMING_INTERVIEWS` shape differed from the API's: it had `date` plus a preformatted `time` string (`"10:00 AM PST"`) and a `companyIcon`. The API gives one `roundDate` and no icon, so the dashboard formats the time via `formatDateTime()` and uses `CompanyAvatar`. The backend stores no timezone, so times render in the browser's local zone.
 
-### `mockUser` vs `/api/auth/me`
+### Recent Activity: derived now, logged later
 
-Nearly identical — the real `UserDto` just adds `defaultResumeUrl`. `AppShell`, `DashboardPage` and `SettingsPage` import `MOCK_USER` as a fallback; once `/me` is trusted, delete the fallback rather than keeping it, so a failed load surfaces as an error instead of silently rendering "Alex Johnson".
+The widget is live, but it is **not** reading an audit log — there isn't one. `buildActivityFeed()` in [src/lib/activity.js](src/lib/activity.js) synthesises events from timestamps `GET /api/jobs` already returns. Every event is real; the derivation is what's limited:
 
-### Suggested order of work
+| | Derived (today) | A real activity log |
+|---|---|---|
+| Job added | ✅ from `createdAt` | ✅ |
+| Job edited | ⚠️ **latest edit only** — `updatedAt` is `@LastModifiedDate`, so five edits collapse to one event | ✅ full history |
+| What changed | ❌ previous values aren't recoverable, so an edit reports the job's *current* status rather than claiming a transition | ✅ `WISHLIST → APPLIED` |
+| Round scheduled / outcome recorded | ❌ past rounds need one request per job | ✅ |
+| Deleted jobs | ❌ gone from `GET /api/jobs`, so the event vanishes with the row | ✅ survives deletion |
 
-1. **Verify the existing auth wiring against the live backend first** — signup, login, both OAuth flows, refresh-on-401. It's the one part written but never actually run; finding a broken interceptor after building five data-fetching pages on top of it is a much worse day.
-2. Rekey `JOB_STATUSES`/`KANBAN_COLUMNS` to uppercase; decide the `type` and `outcome` questions.
-3. Add a `src/lib/jobsApi.js` alongside `lib/api.js` (list/get/create/update/delete/stats) so pages don't hand-roll axios calls.
-4. Swap `ApplicationsPage` → real list + filters; then `DashboardPage` stats; then the job create/edit form.
-5. Interview rounds on a job detail view.
-6. `SettingsPage` → `PUT /api/users/me`, change-password (gate on `provider === 'LOCAL'`), default-resume, `logout-all`.
-7. Delete `mockJobs`' `INITIAL_JOBS`, `mockStats`, `mockUser` — keep `JOB_STATUSES`/`KANBAN_COLUMNS`/`JOB_TYPES` if still used as UI config.
+**To upgrade it**, the backend needs an activity log. Sketch:
 
-### Endpoints still with no UI
+```java
+// enums/ActivityAction.java
+public enum ActivityAction {
+    JOB_CREATED, JOB_UPDATED, STATUS_CHANGED, JOB_DELETED,
+    ROUND_SCHEDULED, ROUND_UPDATED, ROUND_DELETED, OUTCOME_RECORDED
+}
 
-`change-password`, `logout-all` (exists as an unused `AuthContext` function), `PUT /api/users/me`, and the default-resume pair. `SettingsPage` exists but runs on `MOCK_USER`. When wiring it: only offer change-password when `provider === 'LOCAL'`, since OAuth accounts have no password.
+// model/ActivityLog.java
+@Entity @Table(name = "activity_log")
+public class ActivityLog {
+    @Id @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Integer activityId;
 
-### Client-side password rules contradict the backend
+    @ManyToOne @JoinColumn(name = "user_id", nullable = false)
+    private User user;                    // scope every query by this, as /api/rounds/upcoming does
 
-[src/lib/validation.js:17](src/lib/validation.js#L17) enforces **8+ characters, mixed case, a number and a symbol**. The backend's real policy — verified against the DTOs — is just **4–12 characters, no complexity rules**.
+    @Enumerated(EnumType.STRING) @Column(nullable = false)
+    private ActivityAction action;
 
-These don't merely differ, they **conflict in a way that breaks real signups**: the client rule has no upper bound, so a user entering a perfectly reasonable 16-character password passes client validation and then gets a `400` from the server, because the backend caps at 12. The error surfaces on a field the form already told them was valid.
+    // NOT a @ManyToOne. See the note below — this is the one decision worth getting right.
+    @Column(name = "job_id")     private Integer jobId;
+    @Column(name = "company_name") private String companyName;   // snapshot, not a join
+    @Column(name = "job_role")     private String jobRole;       // snapshot
 
-Two ways to reconcile, and it's worth deciding deliberately rather than just making the client match:
+    @Enumerated(EnumType.STRING) private Status fromStatus;      // null unless STATUS_CHANGED
+    @Enumerated(EnumType.STRING) private Status toStatus;
 
-1. **Relax the client to match the backend** (4–12, no complexity). Quick, removes the conflict, but 12 characters is a genuinely weak ceiling for a password max — there's no security reason to cap length that low, and it blocks passphrases and password managers.
-2. **Raise the backend's ceiling** (e.g. `@Size(min = 8, max = 64)`) and keep the stronger client rules, adjusting the min to match. Requires touching `SignupRequestDto`, `ChangePasswordRequestDto`, and `ResetPasswordRequestDto` — all three currently say `min = 4, max = 12`. Note the stored column is a bcrypt hash of fixed length, so a longer max costs nothing in the schema.
+    @CreatedDate @Column(nullable = false)
+    private LocalDateTime createdAt;
+}
+```
 
-Option 2 is the better end state; option 1 is the faster unblock. Either way the two sides must agree before launch.
+Four things that will bite otherwise:
+
+1. **Do not make `jobId` a `@ManyToOne` to `JobApplication`.** `JobApplication` already cascades `ALL` with `orphanRemoval` to its rounds, so a real FK means deleting a job either fails on the constraint or cascade-deletes its own history — including the `JOB_DELETED` event you just wrote. Store a plain `Integer` plus a `companyName`/`jobRole` snapshot so the log outlives the row. That snapshot is also what lets the feed render a deleted job's name at all.
+2. **Capture the old status *before* `jobUtils.applyToEntity(dto, job)`.** That call overwrites the entity in place, so reading `job.getStatus()` after it gives you the new value twice and every `STATUS_CHANGED` row records `X → X`.
+3. **Write from `JobApplicationService`/`InterviewRoundService`, not an `@EntityListener`.** A JPA listener can't tell a status change from a notes edit without extra bookkeeping, and it fires inside the flush, where saving another entity is awkward.
+4. **Cap the query.** `GET /api/activity?limit=20` with a `Pageable` or `Sort` + limit, ordered `createdAt DESC`. Unlike `/api/jobs`, this table grows without bound.
+
+Suggested endpoint — `GET /api/activity?limit=20`, auth required, returns newest first:
+
+```jsonc
+[
+  { "activityId": 12, "action": "STATUS_CHANGED", "jobId": 3,
+    "companyName": "Acme Corp", "jobRole": "Frontend Engineer",
+    "fromStatus": "APPLIED", "toStatus": "INTERVIEW",
+    "createdAt": "2026-08-09T14:30:00" }
+]
+```
+
+Remember to add `.requestMatchers("/api/activity/**").authenticated()` to `SecurityConfig`.
+
+**Frontend swap when it lands:** `activity.js` already emits `{ id, action, jobId, companyName, jobRole, status, timestamp }` with `ACTIVITY_ACTIONS` keyed by the same action names. Add `listActivity()` to `jobsApi.js`, replace the `buildActivityFeed(jobs)` memo in `DashboardPage` with the fetched array, and map `createdAt → timestamp`. The widget itself doesn't change.
+
+**Also removed:** the three notification toggles on `SettingsPage`. They were local `useState` that reset on reload, with no endpoint behind them — the same "don't ship fiction" reasoning as `RECENT_ACTIVITY`. Worth rebuilding when `reminderEnabled` grows a real notification backend.
+
+### `mockUser` — fallback deleted
+
+`MOCK_USER` is gone. `AppShell`, `DashboardPage` and `SettingsPage` now read `user` from `AuthContext` with no fallback, so a failed `/me` surfaces as a real failure instead of silently rendering "Alex Johnson". This is safe because all three render only inside `ProtectedRoute`, which waits for `/me` to resolve before mounting them.
+
+### Endpoints that now have UI
+
+All of them. `change-password`, `logout-all`, `PUT /api/users/me` and the default-resume pair are wired into [SettingsPage.jsx](src/pages/SettingsPage.jsx); change-password is rendered only when `provider === 'LOCAL'`, and OAuth accounts get an explanatory panel instead.
+
+Two asymmetries that bit during wiring and are easy to hit again:
+
+- **`PUT /api/users/me` takes `firstName`/`lastName`, but `UserDto` returns `userFirstName`/`userLastName`.** Sending the `user`-prefixed names is not an error — the fields are simply ignored and the update silently does nothing.
+- **Those fields are `@Size(min = 3, max = 20)` with no `@NotBlank`.** So `null` means "leave unchanged" but `""` is a 400. `updateProfile()` in [src/lib/userApi.js](src/lib/userApi.js) drops blank values rather than forwarding them.
+
+### Password rules, reconciled
+
+**Resolved 2026-08-09.** Both sides were changed, and they now agree.
+
+The backend was raised from `4–12` to **`@Size(min = 8, max = 64)`** across `SignupRequestDto`, `ChangePasswordRequestDto` and `ResetPasswordRequestDto`. Raising the ceiling was the more valuable half: 12 characters blocked passphrases and password managers for no security benefit, since the column stores a fixed-length bcrypt hash regardless of input length.
+
+The client's length rule in [src/lib/validation.js](src/lib/validation.js) gained the matching **upper** bound it never had. That missing ceiling was the actual bug in the original mismatch — an unbounded client rule doesn't merely differ from the server, it green-ticks a password the server will reject, putting the error on a field the form already called valid.
+
+| | Client (`validation.js`) | Backend | |
+|---|---|---|---|
+| Minimum | 8 | 8 | ✅ agrees |
+| Maximum | 64 | 64 | ✅ agrees |
+| Complexity | mixed case + digit + symbol | none | ⚠️ client stricter — the safe direction: it can never produce a surprise 400 |
+
+Two deliberate asymmetries to leave alone:
+
+- **`currentPassword` on change-password has `@NotBlank` only, no `@Size`.** It's an existing password being verified, not a new one being set. Length-validating it would permanently lock out any account created under the old 4-character minimum.
+- **The login form does not apply these rules.** They gate signup only; `handleSubmit` in [LoginPage.jsx](src/pages/LoginPage.jsx) never blocks on them. Enforcing a new policy at login would lock out existing users with legacy passwords.
+
+Verified live after the change: a 20-character password returns `201`; a 5-character one returns `400 { "errors": { "password": "Password must be between 8 and 64 characters" } }`.

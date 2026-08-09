@@ -1,45 +1,44 @@
 import { useState, useMemo } from 'react'
-import { JOB_STATUSES, JOB_TYPES } from '../data/mockJobs'
+import { JOB_STATUSES, JOB_TYPES, getStatusAccent } from '../data/jobConstants'
+import { CompanyAvatar } from './ui/CompanyAvatar'
+import { formatDate } from '../lib/dates'
 
 /**
- * Sortable, filterable table view for job applications.
+ * Table view for job applications.
+ *
+ * Rows are whole `JobApplicationResponseDto` objects. Filtering and searching happen
+ * server-side (`GET /api/jobs?status=&search=`), so this component never filters — it only
+ * re-orders what it is given. With no column selected it preserves the API's newest-first order.
  *
  * @param {object} props
- * @param {Array} props.jobs — array of job objects
- * @param {(jobId: number, newStatus: string) => void} props.onStatusChange
- * @param {string} props.searchQuery — filter string
+ * @param {Array} props.jobs
+ * @param {(job: object, newStatus: string) => void} props.onStatusChange — receives the whole
+ *   job, because updating status requires a full-replace PUT of every field.
+ * @param {(job: object) => void} props.onSelect
  */
-export function JobTable({ jobs, onStatusChange, searchQuery = '' }) {
-  const [sortKey, setSortKey] = useState('appliedDate')
-  const [sortDir, setSortDir] = useState('desc')
+export function JobTable({ jobs, onStatusChange, onSelect }) {
+  const [sortKey, setSortKey] = useState(null)
+  const [sortDir, setSortDir] = useState('asc')
 
   function handleSort(key) {
     if (sortKey === key) {
-      setSortDir((d) => (d === 'asc' ? 'desc' : 'asc'))
-    } else {
-      setSortKey(key)
-      setSortDir('asc')
+      // asc → desc → back to the server's own ordering
+      if (sortDir === 'asc') return setSortDir('desc')
+      setSortKey(null)
+      return setSortDir('asc')
     }
+    setSortKey(key)
+    setSortDir('asc')
   }
 
-  const filtered = useMemo(() => {
-    if (!searchQuery.trim()) return jobs
-    const q = searchQuery.toLowerCase()
-    return jobs.filter(
-      (j) =>
-        j.company.toLowerCase().includes(q) ||
-        j.position.toLowerCase().includes(q) ||
-        j.location.toLowerCase().includes(q),
-    )
-  }, [jobs, searchQuery])
-
   const sorted = useMemo(() => {
-    return [...filtered].sort((a, b) => {
+    if (!sortKey) return jobs
+    return [...jobs].sort((a, b) => {
       let valA = a[sortKey] ?? ''
       let valB = b[sortKey] ?? ''
       if (sortKey === 'appliedDate') {
-        valA = valA || '9999-99-99' // push nulls to end
-        valB = valB || '9999-99-99'
+        valA = valA || '9999-12-31' // nulls (never applied) sort to the end
+        valB = valB || '9999-12-31'
       }
       if (typeof valA === 'string') valA = valA.toLowerCase()
       if (typeof valB === 'string') valB = valB.toLowerCase()
@@ -47,15 +46,15 @@ export function JobTable({ jobs, onStatusChange, searchQuery = '' }) {
       if (valA > valB) return sortDir === 'asc' ? 1 : -1
       return 0
     })
-  }, [filtered, sortKey, sortDir])
+  }, [jobs, sortKey, sortDir])
 
   const columns = [
-    { key: 'company', label: 'Company' },
-    { key: 'position', label: 'Position' },
+    { key: 'companyName', label: 'Company' },
+    { key: 'jobRole', label: 'Position' },
     { key: 'location', label: 'Location' },
-    { key: 'type', label: 'Type' },
+    { key: 'jobType', label: 'Type' },
     { key: 'status', label: 'Status' },
-    { key: 'salary', label: 'Salary' },
+    { key: 'salaryRange', label: 'Salary' },
     { key: 'appliedDate', label: 'Applied' },
   ]
 
@@ -72,9 +71,7 @@ export function JobTable({ jobs, onStatusChange, searchQuery = '' }) {
               >
                 <span className="inline-flex items-center gap-1">
                   {col.label}
-                  {sortKey === col.key && (
-                    <SortIcon dir={sortDir} />
-                  )}
+                  {sortKey === col.key && <SortIcon dir={sortDir} />}
                 </span>
               </th>
             ))}
@@ -84,68 +81,51 @@ export function JobTable({ jobs, onStatusChange, searchQuery = '' }) {
           {sorted.length === 0 && (
             <tr>
               <td colSpan={columns.length} className="px-4 py-10 text-center text-sm text-text-muted">
-                No jobs match your search.
+                No applications match your filters.
               </td>
             </tr>
           )}
           {sorted.map((job) => {
-            const borderColor = getRowBorderColor(job)
+            const accent = getStatusAccent(job.status)
             return (
               <tr
-                key={job.id}
-                className="group border-b border-border/30 transition-colors duration-200 hover:bg-surface-alt/40"
-                style={
-                  borderColor
-                    ? { boxShadow: `inset 3px 0 0 0 ${borderColor}` }
-                    : undefined
-                }
+                key={job.jobId}
+                onClick={() => onSelect?.(job)}
+                className="group cursor-pointer border-b border-border/30 transition-colors duration-200 hover:bg-surface-alt/40"
+                style={accent ? { boxShadow: `inset 3px 0 0 0 ${accent}` } : undefined}
               >
-                {/* Company */}
                 <td className="px-4 py-3">
                   <div className="flex items-center gap-2.5">
-                    <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-surface-alt text-sm">
-                      {job.companyIcon}
-                    </span>
-                    <span className="font-medium text-text">{job.company}</span>
+                    <CompanyAvatar name={job.companyName} size="sm" />
+                    <span className="font-medium text-text">{job.companyName}</span>
                   </div>
                 </td>
 
-                {/* Position */}
-                <td className="px-4 py-3 text-text">{job.position}</td>
+                <td className="px-4 py-3 text-text">{job.jobRole}</td>
 
-                {/* Location */}
-                <td className="px-4 py-3 text-text-muted">{job.location}</td>
+                <td className="px-4 py-3 text-text-muted">{job.location || '—'}</td>
 
-                {/* Type */}
                 <td className="px-4 py-3">
-                  <span className="rounded bg-surface-alt px-2 py-0.5 text-xs font-medium text-text-muted">
-                    {JOB_TYPES[job.type] ?? job.type}
-                  </span>
+                  {job.jobType ? (
+                    <span className="rounded bg-surface-alt px-2 py-0.5 text-xs font-medium text-text-muted">
+                      {JOB_TYPES[job.jobType] ?? job.jobType}
+                    </span>
+                  ) : (
+                    <span className="text-xs text-text-muted/50">—</span>
+                  )}
                 </td>
 
-                {/* Status — inline dropdown */}
-                <td className="px-4 py-3">
+                {/* Status — inline dropdown. Stop propagation so changing status doesn't also open the job. */}
+                <td className="px-4 py-3" onClick={(e) => e.stopPropagation()}>
                   <StatusDropdown
                     currentStatus={job.status}
-                    onChange={(newStatus) => onStatusChange(job.id, newStatus)}
+                    onChange={(newStatus) => onStatusChange(job, newStatus)}
                   />
                 </td>
 
-                {/* Salary */}
-                <td className="px-4 py-3 text-text-muted">
-                  {job.salary || '—'}
-                </td>
+                <td className="px-4 py-3 text-text-muted">{job.salaryRange || '—'}</td>
 
-                {/* Applied date */}
-                <td className="px-4 py-3 text-text-muted">
-                  {job.appliedDate
-                    ? new Date(job.appliedDate + 'T00:00:00').toLocaleDateString('en-US', {
-                        month: 'short',
-                        day: 'numeric',
-                        year: 'numeric',
-                      })
-                    : '—'}
-                </td>
+                <td className="px-4 py-3 text-text-muted">{formatDate(job.appliedDate)}</td>
               </tr>
             )
           })}
@@ -161,9 +141,7 @@ function StatusDropdown({ currentStatus, onChange }) {
       value={currentStatus}
       onChange={(e) => onChange(e.target.value)}
       className="cursor-pointer rounded-md border border-border/60 bg-surface px-2 py-1 text-xs text-text transition-colors duration-200 hover:border-primary/50 focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary/30"
-      style={{
-        color: JOB_STATUSES[currentStatus]?.color,
-      }}
+      style={{ color: JOB_STATUSES[currentStatus]?.color }}
     >
       {Object.values(JOB_STATUSES).map((s) => (
         <option key={s.key} value={s.key}>
@@ -177,17 +155,7 @@ function StatusDropdown({ currentStatus, onChange }) {
 function SortIcon({ dir }) {
   return (
     <svg viewBox="0 0 10 14" className="h-3 w-3 fill-primary" aria-hidden="true">
-      {dir === 'asc' ? (
-        <path d="M5 0L10 6H0z" />
-      ) : (
-        <path d="M5 14L0 8h10z" />
-      )}
+      {dir === 'asc' ? <path d="M5 0L10 6H0z" /> : <path d="M5 14L0 8h10z" />}
     </svg>
   )
-}
-
-function getRowBorderColor(job) {
-  if (job.status === 'offer' && job.outcome === 'accepted') return '#4ade9b'
-  if (job.status === 'rejected' || job.outcome === 'rejected') return '#fb7185'
-  return null
 }

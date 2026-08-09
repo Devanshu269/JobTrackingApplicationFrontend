@@ -1,16 +1,22 @@
 import { useState, useCallback } from 'react'
-import { KANBAN_COLUMNS, JOB_STATUSES, JOB_TYPES } from '../data/mockJobs'
+import { KANBAN_COLUMNS, JOB_STATUSES, JOB_TYPES, getStatusAccent } from '../data/jobConstants'
 import { StatusBadge } from './ui/StatusBadge'
+import { CompanyAvatar } from './ui/CompanyAvatar'
+import { formatDateShort } from '../lib/dates'
 
 /**
  * Drag-and-drop Kanban board using the HTML5 Drag and Drop API.
- * Four columns: Thinking to Apply → Applied → In Interview Process → Offer/Rejected
+ * WISHLIST → APPLIED → INTERVIEW → OFFER/REJECTED
  *
  * @param {object} props
- * @param {Array} props.jobs — array of job objects
- * @param {(jobId: number, newStatus: string) => void} props.onStatusChange
+ * @param {Array} props.jobs
+ * @param {(job: object, newStatus: string) => void} props.onStatusChange — deliberately passes
+ *   the *whole job*, not just its id. The API has no PATCH: persisting a status change means a
+ *   full-replace PUT, so the caller needs every other field to send back untouched.
+ * @param {(job: object) => void} props.onSelect
+ * @param {number|null} props.pendingJobId — job with an in-flight status update.
  */
-export function KanbanBoard({ jobs, onStatusChange }) {
+export function KanbanBoard({ jobs, onStatusChange, onSelect, pendingJobId = null }) {
   const [draggedId, setDraggedId] = useState(null)
   const [dropTarget, setDropTarget] = useState(null)
 
@@ -18,7 +24,6 @@ export function KanbanBoard({ jobs, onStatusChange }) {
     setDraggedId(jobId)
     e.dataTransfer.effectAllowed = 'move'
     e.dataTransfer.setData('text/plain', String(jobId))
-    // Make the ghost slightly transparent
     if (e.target) {
       requestAnimationFrame(() => {
         e.target.style.opacity = '0.5'
@@ -52,22 +57,21 @@ export function KanbanBoard({ jobs, onStatusChange }) {
       const jobId = Number(e.dataTransfer.getData('text/plain'))
       if (!jobId) return
 
-      // Determine the new status from the column
       const column = KANBAN_COLUMNS.find((c) => c.key === columnKey)
       if (!column) return
 
-      // For the offer-rejected column, keep the existing status if it's already one of the column statuses
-      const job = jobs.find((j) => j.id === jobId)
+      const job = jobs.find((j) => j.jobId === jobId)
       if (!job) return
 
       let newStatus = column.statuses[0]
-      if (columnKey === 'offer-rejected') {
-        // Default to 'offer' when dropping into the last column
-        newStatus = column.statuses.includes(job.status) ? job.status : 'offer'
+      if (columnKey === 'OFFER_REJECTED') {
+        // The combined column holds two statuses — keep whichever the job already has,
+        // and default to OFFER when arriving from elsewhere.
+        newStatus = column.statuses.includes(job.status) ? job.status : 'OFFER'
       }
 
       if (job.status !== newStatus) {
-        onStatusChange(jobId, newStatus)
+        onStatusChange(job, newStatus)
       }
     },
     [jobs, onStatusChange],
@@ -78,10 +82,7 @@ export function KanbanBoard({ jobs, onStatusChange }) {
       {KANBAN_COLUMNS.map((column) => {
         const columnJobs = jobs.filter((j) => column.statuses.includes(j.status))
         const isOver = dropTarget === column.key
-        const colColor =
-          column.key === 'offer-rejected'
-            ? JOB_STATUSES.offer.color
-            : JOB_STATUSES[column.statuses[0]].color
+        const colColor = JOB_STATUSES[column.statuses[0]].color
 
         return (
           <div
@@ -107,7 +108,10 @@ export function KanbanBoard({ jobs, onStatusChange }) {
             </div>
 
             {/* Cards */}
-            <div className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-3 scrollbar-thin" style={{ maxHeight: '65vh' }}>
+            <div
+              className="flex flex-1 flex-col gap-2.5 overflow-y-auto p-3 scrollbar-thin"
+              style={{ maxHeight: '65vh' }}
+            >
               {columnJobs.length === 0 && (
                 <div className="flex flex-1 items-center justify-center py-10">
                   <p className="text-xs text-text-muted/60">Drop jobs here</p>
@@ -115,12 +119,14 @@ export function KanbanBoard({ jobs, onStatusChange }) {
               )}
               {columnJobs.map((job, i) => (
                 <KanbanCard
-                  key={job.id}
+                  key={job.jobId}
                   job={job}
                   index={i}
-                  isDragging={draggedId === job.id}
+                  isDragging={draggedId === job.jobId}
+                  isPending={pendingJobId === job.jobId}
                   onDragStart={handleDragStart}
                   onDragEnd={handleDragEnd}
+                  onSelect={onSelect}
                 />
               ))}
             </div>
@@ -131,38 +137,39 @@ export function KanbanBoard({ jobs, onStatusChange }) {
   )
 }
 
-function KanbanCard({ job, index, isDragging, onDragStart, onDragEnd }) {
-  const borderColor = getBorderColor(job)
+function KanbanCard({ job, index, isDragging, isPending, onDragStart, onDragEnd, onSelect }) {
+  const accent = getStatusAccent(job.status)
 
   return (
     <div
       draggable="true"
-      onDragStart={(e) => onDragStart(e, job.id)}
+      onDragStart={(e) => onDragStart(e, job.jobId)}
       onDragEnd={onDragEnd}
+      onClick={() => onSelect?.(job)}
       className={`animate-fade-in-up cursor-grab rounded-lg border bg-surface p-3.5 shadow-sm transition-all duration-200 active:cursor-grabbing hover:-translate-y-0.5 hover:shadow-md ${
         isDragging ? 'scale-[0.97] opacity-50' : ''
-      }`}
+      } ${isPending ? 'animate-pulse' : ''}`}
       style={{
-        borderColor,
+        borderColor: accent ?? 'var(--color-border)',
         animationDelay: `${index * 60}ms`,
       }}
     >
-      {/* Company + icon */}
+      {/* Company */}
       <div className="flex items-start gap-2.5">
-        <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-surface-alt text-base">
-          {job.companyIcon}
-        </span>
+        <CompanyAvatar name={job.companyName} size="md" />
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-text">{job.position}</p>
-          <p className="truncate text-xs text-text-muted">{job.company}</p>
+          <p className="truncate text-sm font-medium text-text">{job.jobRole}</p>
+          <p className="truncate text-xs text-text-muted">{job.companyName}</p>
         </div>
       </div>
 
       {/* Tags row */}
       <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
-        <span className="rounded bg-surface-alt px-1.5 py-0.5 text-[10px] font-medium text-text-muted">
-          {JOB_TYPES[job.type] ?? job.type}
-        </span>
+        {job.jobType && (
+          <span className="rounded bg-surface-alt px-1.5 py-0.5 text-[10px] font-medium text-text-muted">
+            {JOB_TYPES[job.jobType] ?? job.jobType}
+          </span>
+        )}
         {job.location && (
           <span className="truncate rounded bg-surface-alt px-1.5 py-0.5 text-[10px] text-text-muted">
             📍 {job.location}
@@ -173,26 +180,12 @@ function KanbanCard({ job, index, isDragging, onDragStart, onDragEnd }) {
       {/* Bottom row */}
       <div className="mt-2.5 flex items-center justify-between">
         {job.appliedDate ? (
-          <span className="text-[10px] text-text-muted/70">
-            {formatDate(job.appliedDate)}
-          </span>
+          <span className="text-[10px] text-text-muted/70">{formatDateShort(job.appliedDate)}</span>
         ) : (
-          <span className="text-[10px] text-text-muted/50 italic">Not applied</span>
+          <span className="text-[10px] italic text-text-muted/50">Not applied</span>
         )}
         <StatusBadge status={job.status} className="text-[9px]" />
       </div>
     </div>
   )
-}
-
-function getBorderColor(job) {
-  if (job.status === 'offer' && job.outcome === 'accepted') return '#4ade9b'
-  if (job.status === 'rejected' || job.outcome === 'rejected') return '#fb7185'
-  return 'var(--color-border)'
-}
-
-function formatDate(dateStr) {
-  if (!dateStr) return ''
-  const d = new Date(dateStr + 'T00:00:00')
-  return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }

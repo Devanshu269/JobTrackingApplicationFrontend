@@ -11,6 +11,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage'
 import OAuthRedirectPage from './pages/OAuthRedirectPage'
 import DashboardPage from './pages/DashboardPage'
 import ApplicationsPage from './pages/ApplicationsPage'
+import JobDetailPage from './pages/JobDetailPage'
 import AnalyticsPage from './pages/AnalyticsPage'
 import SettingsPage from './pages/SettingsPage'
 
@@ -47,6 +48,7 @@ export default function App() {
               <Route index element={<Navigate to="dashboard" replace />} />
               <Route path="dashboard" element={<DashboardPage />} />
               <Route path="applications" element={<ApplicationsPage />} />
+              <Route path="applications/:jobId" element={<JobDetailPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
