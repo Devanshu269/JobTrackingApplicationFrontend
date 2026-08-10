@@ -8,9 +8,7 @@ import { formatRelative, formatDateTime } from '../lib/dates'
 import { CompanyAvatar } from '../components/ui/CompanyAvatar'
 import { Alert } from '../components/ui/Alert'
 
-const INITIAL_LIMIT = 25
-const LOAD_MORE_STEP = 25
-const MAX_LIMIT = 100
+const PAGE_SIZE = 25
 
 export default function ActivityPage() {
   const navigate = useNavigate()
@@ -18,16 +16,15 @@ export default function ActivityPage() {
   const [loading, setLoading] = useState(true)
   const [loadingMore, setLoadingMore] = useState(false)
   const [error, setError] = useState('')
-  const [limit, setLimit] = useState(INITIAL_LIMIT)
+  const [page, setPage] = useState(0)
   const [hasMore, setHasMore] = useState(true)
 
-  const load = useCallback(async (lim) => {
+  const load = useCallback(async (pageNum, isAppend = false) => {
     try {
-      const data = await listActivity(lim)
-      const mapped = mapApiActivity(data)
-      setEvents(mapped)
-      // If we got fewer than requested, there's no more data
-      setHasMore(mapped.length >= lim && lim < MAX_LIMIT)
+      const data = await listActivity(pageNum, PAGE_SIZE)
+      const mapped = mapApiActivity(data.content || [])
+      setEvents(prev => isAppend ? [...prev, ...mapped] : mapped)
+      setHasMore(!data.last)
       setError('')
     } catch (err) {
       setError(getApiErrorMessage(err, 'Could not load activity.'))
@@ -37,17 +34,17 @@ export default function ActivityPage() {
   useEffect(() => {
     let cancelled = false
     setLoading(true)
-    load(INITIAL_LIMIT).finally(() => {
+    load(0).finally(() => {
       if (!cancelled) setLoading(false)
     })
     return () => { cancelled = true }
   }, [load])
 
   async function handleLoadMore() {
-    const nextLimit = Math.min(limit + LOAD_MORE_STEP, MAX_LIMIT)
+    const nextPage = page + 1
     setLoadingMore(true)
-    setLimit(nextLimit)
-    await load(nextLimit)
+    setPage(nextPage)
+    await load(nextPage, true)
     setLoadingMore(false)
   }
 

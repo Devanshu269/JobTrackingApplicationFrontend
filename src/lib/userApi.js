@@ -45,3 +45,8 @@ export async function clearDefaultResume() {
 export async function changePassword({ currentPassword, newPassword }) {
   await api.post('/api/auth/change-password', { currentPassword, newPassword })
 }
+
+export async function updatePreferences(preferences) {
+  const { data } = await api.patch('/api/users/me/preferences', preferences)
+  return data
+}

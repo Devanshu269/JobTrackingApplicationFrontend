@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react'
+import { useMemo, useState, useEffect } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from './ui/Logo'
@@ -8,6 +8,7 @@ import { Modal } from './ui/Modal'
 import { filenameFromUrl, resolveFileUrl } from '../lib/filesApi'
 import { clearDefaultResume } from '../lib/userApi'
 import { getApiErrorMessage } from '../lib/api'
+import { getNotifications } from '../lib/jobsApi'
 
 const NAV_ITEMS = [
   {
@@ -72,6 +73,19 @@ export function AppShell() {
   const [resumePopoverOpen, setResumePopoverOpen] = useState(false)
   const [resumeRemoving, setResumeRemoving] = useState(false)
   const [resumeRemoveError, setResumeRemoveError] = useState('')
+  const [apiNotifications, setApiNotifications] = useState([])
+
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+    getNotifications()
+      .then((data) => {
+        if (!cancelled) setApiNotifications(data || [])
+      })
+      .catch((err) => console.error('Failed to load notifications:', err))
+    
+    return () => { cancelled = true }
+  }, [user])
 
   /**
    * Derived from state the shell already has — no extra request. Only genuinely actionable
@@ -89,8 +103,22 @@ export function AppShell() {
         onAction: () => setResumeModalOpen(true),
       })
     }
+    
+    for (const job of apiNotifications) {
+      if (!job.reminderSentAt) {
+        items.push({
+          id: `reminder-${job.jobId}`,
+          tone: 'primary',
+          title: 'Follow-up due',
+          body: `Time to follow up with ${job.companyName} for the ${job.jobRole} role.`,
+          actionLabel: 'View application',
+          onAction: () => navigate(`/JobJuggler/applications/${job.jobId}`),
+        })
+      }
+    }
+    
     return items
-  }, [user])
+  }, [user, apiNotifications, navigate])
 
   // No mock fallback: AppShell only renders inside ProtectedRoute, which waits for /me to
   // resolve. A missing user here means a real failure and should look like one, not silently

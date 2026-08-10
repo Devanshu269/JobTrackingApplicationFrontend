@@ -57,10 +57,10 @@ export function toJobRequestBody(job) {
  * newest-first from the server, so callers must not re-sort by date.
  */
 export async function listJobs(filters = {}) {
-  const params = {}
-  for (const key of ['status', 'priority', 'jobType', 'search']) {
+  const params = { size: 100 } // Default to fetching up to 100 on one page
+  for (const key of ['status', 'priority', 'jobType', 'search', 'page', 'size']) {
     const value = filters[key]
-    if (value) params[key] = value
+    if (value !== undefined && value !== '') params[key] = value
   }
   const { data } = await api.get('/api/jobs', { params })
   return data
@@ -81,6 +81,11 @@ export async function updateJob(jobId, job) {
   return data
 }
 
+export async function patchJob(jobId, updates) {
+  const { data } = await api.patch(`/api/jobs/${jobId}`, updates)
+  return data
+}
+
 export async function deleteJob(jobId) {
   await api.delete(`/api/jobs/${jobId}`)
 }
@@ -88,6 +93,16 @@ export async function deleteJob(jobId) {
 /** `{ total, byStatus: { WISHLIST, APPLIED, INTERVIEW, OFFER, REJECTED } }` — always zero-filled. */
 export async function getJobStats() {
   const { data } = await api.get('/api/jobs/stats')
+  return data
+}
+
+export async function getJobTrend(days = 7) {
+  const { data } = await api.get('/api/jobs/trend', { params: { days } })
+  return data
+}
+
+export async function getNotifications() {
+  const { data } = await api.get('/api/notifications')
   return data
 }
 
@@ -125,9 +140,9 @@ export async function listUpcomingRounds() {
 
 /**
  * Real append-only audit trail. Replaces the derived feed from `buildActivityFeed()`.
- * `limit` defaults to 20; the backend clamps it to 1–100 rather than rejecting out-of-range.
+ * Paginated natively by the backend via `page` and `size`.
  */
-export async function listActivity(limit = 20) {
-  const { data } = await api.get('/api/activity', { params: { limit } })
+export async function listActivity(page = 0, size = 25) {
+  const { data } = await api.get('/api/activity', { params: { page, size } })
   return data
 }

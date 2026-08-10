@@ -18,6 +18,61 @@ Checked against the current source, not assumed.
 
 **Do the first item before anything else — without it every user gets logged out.**
 
+### 🔴 Response shape changed on `/api/jobs` and `/api/activity` — BREAKING
+
+Both endpoints now return a **page object instead of a bare array**. Any code doing `data.map(...)` on them breaks.
+
+```jsonc
+// GET /api/jobs  and  GET /api/activity
+{ "content": [ /* the array you used to get */ ],
+  "number": 0,            // zero-based page index
+  "size": 20,
+  "totalElements": 25,
+  "totalPages": 2,
+  "first": true,
+  "last": false }
+```
+
+- [ ] Read `data.content` wherever you previously used `data` for these two endpoints.
+- [ ] **`/api/activity`'s `?limit=` is gone — use `?size=`.** Dashboard's `listActivity(8)` becomes `?size=8`; the Activity page's "load more" is now `?page=N` rather than a growing limit, which is also cheaper.
+- [ ] `?page=` is zero-based. `size` is clamped to 100 on both, so asking for more silently returns 100.
+- [ ] `GET /api/jobs` filters are unchanged and combine with paging as before.
+
+**`GET /api/jobs/trend` now exists — switch the chart to it.** `buildWeeklyTrend()` derives the chart from the full jobs list, which now only sees one page, so the chart is *wrong as of this change*, not merely fragile.
+
+```jsonc
+// GET /api/jobs/trend?days=7  → oldest first, every day present and zero-filled
+[ { "date": "2026-08-04", "count": 0 }, { "date": "2026-08-05", "count": 4 }, … ]
+```
+
+`date` is a plain `YYYY-MM-DD` with no time or timezone. Days are bucketed server-side from `appliedDate` (falling back to `createdAt`), matching what the client used to compute.
+
+### 🟠 New: PATCH for kanban drag-and-drop
+
+`PATCH /api/jobs/{jobId}` accepts a partial body — dragging a card can now send just the status instead of the whole object:
+
+```jsonc
+// PATCH /api/jobs/48   →  200, the full updated job
+{ "status": "INTERVIEW" }
+```
+
+- **Omitted fields are left untouched.** So is an explicit `null` — a POJO can't tell the two apart, so null means "no change", not "clear". **To clear a field, keep using `PUT`** with the full object.
+- Still logs a proper `STATUS_CHANGED` activity event with the correct `previousStatus`.
+- Same errors as `PUT`: 400 on a bad enum, 404 on someone else's job.
+
+### 🟠 New: notification bell endpoint and email preference
+
+- **`GET /api/notifications`** returns due follow-ups directly, so the bell no longer needs the jobs list — which matters now that jobs are paged and page 1 doesn't tell you what's due.
+  ```jsonc
+  [ { "id": "follow-up-48", "type": "FOLLOW_UP_DUE", "jobId": 48,
+      "companyName": "Co25", "jobRole": "Eng 25",
+      "dueAt": "2026-08-07T09:00:00", "reminderSentAt": null } ]
+  ```
+  `reminderSentAt: null` means due but not yet emailed; a timestamp means we already emailed about it. Capped at 20.
+- **`emailNotifications`** is now on `UserDto` from `/api/auth/me`, toggled via **`PATCH /api/users/me/preferences`** with `{ "emailNotifications": false }`. Returns the updated `UserDto`.
+  - ⚠️ Path differs from your spec (`/api/auth/me/preferences`) — kept under `/api/users/me` to match the other profile mutations.
+  - **No `pushNotifications`.** There's no push transport in either repo, so the toggle would store a value nothing reads — the same reason those toggles were removed from Settings originally. One real switch is better than two where one is decorative.
+
 ### 🔴 Refresh token rotation — BREAKING, one-line fix
 
 `POST /api/auth/refresh` now returns a **new** `refreshToken` on every call, and the one you sent is immediately revoked. The current code stores only the access token, so the second refresh of any session will 401 and sign the user out.
@@ -82,9 +137,11 @@ What changed is what that stored string *is* for documents. Avatars still return
 
 Note the **413** — if any error handling special-cases 400 for validation, oversized uploads will fall through to a generic message.
 
-### ✳️ `reminderSentAt` — optional
+### ✳️ `reminderSentAt` — already shipped
 
-`JobApplicationResponseDto` now includes `reminderSentAt` (nullable). The notification bell currently infers "overdue follow-up" from `followUpDate <= now && reminderEnabled`; it can now distinguish *"due"* from *"we already emailed you"*. Purely an enhancement — reminders fire server-side on a schedule, so there is nothing for the UI to trigger.
+`JobApplicationResponseDto` has included `reminderSentAt` since 2026-08-10 — it was already there when it was requested. Nullable: null means due-but-not-emailed, a timestamp means an email went out.
+
+Note that `GET /api/notifications` now gives the bell this same distinction without needing the jobs list at all, which is the better path now that jobs are paged.
 
 ### No action needed
 
@@ -157,6 +214,7 @@ On `POST /api/auth/refresh`, `refreshToken` comes back **populated with a NEW va
   "email": "someone@example.com",
   "avatarUrl": "https://cdn-icons-png.flaticon.com/512/149/149071.png",
   "defaultResumeUrl": null,
+  "emailNotifications": true,
   "provider": "LOCAL"
 }
 ```
@@ -266,6 +324,7 @@ Request field details:
 | PUT | `/api/users/me` | **yes** | `{ firstName?, lastName?, avatarUrl? }` | 200 | `UserDto` |
 | PUT | `/api/users/me/default-resume` | **yes** | `{ resumeUrl }` | 200 | `UserDto` |
 | DELETE | `/api/users/me/default-resume` | **yes** | — | 200 | `UserDto` |
+| PATCH | `/api/users/me/preferences` | **yes** | `{ emailNotifications? }` | 200 | `UserDto` |
 
 - **`PUT /api/users/me`** is a genuine **partial update** — send only the fields you're changing; omitted or null fields are left untouched. `firstName`/`lastName` are 3–20 chars *when present*.
 - **`PUT /api/users/me/default-resume`** sets the user's reusable default resume. `resumeUrl` is required and non-blank (400 otherwise) — which is why clearing it needs the `DELETE` verb instead of sending an empty string.
@@ -278,11 +337,13 @@ All scoped to the logged-in user automatically — you never send a userId, and 
 
 | Method | URL | Auth | Request body | Success | Response body |
 |---|---|---|---|---|---|
-| GET | `/api/jobs` | **yes** | — (query params below) | 200 | `JobApplicationResponseDto[]`, newest first |
+| GET | `/api/jobs` | **yes** | — (query params below) | 200 | **`PagedResponseDto<JobApplicationResponseDto>`** — `content` holds the array |
+| GET | `/api/jobs/trend` | **yes** | — (`?days=`, default 7) | 200 | `TrendPointDto[]` — `{ date, count }`, oldest first, zero-filled |
 | GET | `/api/jobs/stats` | **yes** | — | 200 | `JobStatsResponseDto` |
 | GET | `/api/jobs/{jobId}` | **yes** | — | 200 | `JobApplicationResponseDto` |
 | POST | `/api/jobs` | **yes** | job body | 201 | `JobApplicationResponseDto` |
 | PUT | `/api/jobs/{jobId}` | **yes** | job body | 200 | `JobApplicationResponseDto` |
+| PATCH | `/api/jobs/{jobId}` | **yes** | partial job body | 200 | `JobApplicationResponseDto` — omitted/null fields untouched |
 | DELETE | `/api/jobs/{jobId}` | **yes** | — | 204 | *(empty)* |
 
 **Request body** (identical for POST and PUT):
@@ -507,7 +568,7 @@ Semantics worth knowing:
 
 | Method | URL | Auth | Request body | Success | Response body |
 |---|---|---|---|---|---|
-| GET | `/api/activity` | **yes** | — (`?limit=` below) | 200 | `ActivityResponseDto[]`, newest first |
+| GET | `/api/activity` | **yes** | — (`?page=` `?size=`) | 200 | **`PagedResponseDto<ActivityResponseDto>`** — `content` holds the array |
 
 **This replaces the derived feed in `src/lib/activity.js`.** It's a real append-only audit trail written from the service layer on every mutation, so it does the three things the derived version documented as impossible: a full edit history rather than one event per job, actual `previousStatus → status` transitions, and events for deleted jobs.
 
@@ -534,7 +595,7 @@ The response shape deliberately matches what `buildActivityFeed()` already retur
 
 `previousStatus` is only populated on the three status-transition actions; it's null elsewhere. `companyName`/`jobRole` are **snapshots taken at write time**, not joins — that's what lets a deleted job's events still render, and it also means they show the name *as it was then*, so renaming a company doesn't rewrite history.
 
-**`?limit=`** defaults to 20 and is clamped to 1–100 rather than rejected, so `?limit=9999` returns 100 instead of a 400. Unlike `/api/jobs` this table only grows, hence the hard ceiling.
+**Paged as of 2026-08-10** — `?page=` is zero-based and `?size=` defaults to 20, clamped to 1–100 rather than rejected (so `?size=9999` returns 100, not a 400). The old `?limit=` parameter is gone. This table only ever grows, hence the hard ceiling.
 
 ### Refresh token rotation (BREAKING CHANGE)
 
@@ -566,6 +627,20 @@ Why it changed, and what it buys:
 `purpose` is `resume`, `cover-letter` or `avatar`.
 
 **Avatars return a directly usable public URL. Resumes and cover letters return an opaque `/api/files/{id}` reference** that must be exchanged via the `GET` for a 5-minute signed `downloadUrl`. That asymmetry is deliberate — full rationale, validation table and a `resolveFileUrl()` helper are in [File uploads](#file-uploads--built-but-the-private-file-contract-changed).
+
+### Notifications
+
+| Method | URL | Auth | Request body | Success | Response body |
+|---|---|---|---|---|---|
+| GET | `/api/notifications` | **yes** | — | 200 | `NotificationDto[]` — due follow-ups, max 20 |
+
+```jsonc
+[ { "id": "follow-up-48", "type": "FOLLOW_UP_DUE", "jobId": 48,
+    "companyName": "Co25", "jobRole": "Eng 25",
+    "dueAt": "2026-08-07T09:00:00", "reminderSentAt": null } ]
+```
+
+Built so the bell doesn't need the jobs list — which stopped being viable once `/api/jobs` became paged, since page 1 doesn't tell you what's due. `reminderSentAt: null` means due but not yet emailed.
 
 ### Follow-up reminders
 

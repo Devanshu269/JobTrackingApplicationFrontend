@@ -1,8 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { JOB_STATUSES } from '../data/jobConstants'
-import { listJobs, getJobStats } from '../lib/jobsApi'
+import { listJobs, getJobStats, getJobTrend } from '../lib/jobsApi'
 import { getApiErrorMessage } from '../lib/api'
-import { buildWeeklyTrend } from '../lib/dates'
 import { Alert } from '../components/ui/Alert'
 
 const FUNNEL_KEYS = ['WISHLIST', 'APPLIED', 'INTERVIEW', 'OFFER']
@@ -11,6 +10,7 @@ const DONUT_KEYS = ['WISHLIST', 'APPLIED', 'INTERVIEW', 'OFFER', 'REJECTED']
 export default function AnalyticsPage() {
   const [stats, setStats] = useState(null)
   const [jobs, setJobs] = useState([])
+  const [weeklyTrend, setWeeklyTrend] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -19,11 +19,21 @@ export default function AnalyticsPage() {
 
     async function load() {
       try {
-        // Stats give the counts; the jobs list is only needed for the client-derived trend.
-        const [statsData, jobData] = await Promise.all([getJobStats(), listJobs()])
+        const [statsData, jobData, trendData] = await Promise.all([
+          getJobStats(), 
+          listJobs(),
+          getJobTrend(7)
+        ])
         if (cancelled) return
         setStats(statsData)
-        setJobs(jobData)
+        setJobs(jobData.content || [])
+        
+        const mappedTrend = (trendData || []).map((t) => ({
+          key: t.date,
+          day: new Date(t.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' }),
+          count: t.count
+        }))
+        setWeeklyTrend(mappedTrend)
         setError('')
       } catch (err) {
         if (!cancelled) setError(getApiErrorMessage(err, 'Could not load your analytics.'))
@@ -38,7 +48,6 @@ export default function AnalyticsPage() {
     }
   }, [])
 
-  const weeklyTrend = useMemo(() => buildWeeklyTrend(jobs), [jobs])
   const maxTrend = Math.max(...weeklyTrend.map((d) => d.count), 1)
 
   const total = stats?.total ?? 0

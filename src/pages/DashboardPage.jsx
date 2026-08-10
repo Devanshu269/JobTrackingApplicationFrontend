@@ -2,9 +2,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { JOB_STATUSES, KANBAN_COLUMNS, getStatusAccent } from '../data/jobConstants'
-import { listJobs, getJobStats, listUpcomingRounds, listActivity } from '../lib/jobsApi'
+import { listJobs, getJobStats, listUpcomingRounds, listActivity, getJobTrend } from '../lib/jobsApi'
 import { getApiErrorMessage } from '../lib/api'
-import { buildWeeklyTrend, formatDateTime, formatRelative } from '../lib/dates'
+import { formatDateTime, formatRelative } from '../lib/dates'
 import { describeActivity, ACTIVITY_ACTIONS } from '../lib/activity'
 import { StatCard } from '../components/ui/StatCard'
 import { CompanyAvatar } from '../components/ui/CompanyAvatar'
@@ -18,6 +18,7 @@ export default function DashboardPage() {
   const [stats, setStats] = useState(null)
   const [upcoming, setUpcoming] = useState([])
   const [activity, setActivity] = useState([])
+  const [weeklyTrend, setWeeklyTrend] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -26,17 +27,26 @@ export default function DashboardPage() {
 
     async function load() {
       try {
-        const [jobData, statsData, upcomingData, activityData] = await Promise.all([
-          listJobs(),
+        const [jobData, statsData, upcomingData, activityData, trendData] = await Promise.all([
+          listJobs(), // defaults to size=100
           getJobStats(),
           listUpcomingRounds(),
-          listActivity(8),
+          listActivity(0, 8), // page 0, size 8
+          getJobTrend(7)
         ])
         if (cancelled) return
-        setJobs(jobData)
+        setJobs(jobData.content || [])
         setStats(statsData)
         setUpcoming(upcomingData)
-        setActivity(activityData)
+        setActivity(activityData.content || [])
+        
+        // Map backend trend shape to UI shape
+        const mappedTrend = (trendData || []).map((t) => ({
+          key: t.date,
+          day: new Date(t.date + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'short' }),
+          count: t.count
+        }))
+        setWeeklyTrend(mappedTrend)
         setError('')
       } catch (err) {
         if (!cancelled) setError(getApiErrorMessage(err, 'Could not load your dashboard.'))
@@ -51,8 +61,6 @@ export default function DashboardPage() {
     }
   }, [])
 
-  // No trend endpoint exists — bucket the jobs we already fetched by day instead.
-  const weeklyTrend = useMemo(() => buildWeeklyTrend(jobs), [jobs])
   const maxTrend = Math.max(...weeklyTrend.map((d) => d.count), 1)
 
 

@@ -4,7 +4,7 @@ import { JOB_STATUSES, JOB_TYPES, JOB_PRIORITIES } from '../data/jobConstants'
 import { KanbanBoard } from '../components/KanbanBoard'
 import { JobTable } from '../components/JobTable'
 import { JobFormModal } from '../components/JobFormModal'
-import { listJobs, updateJob } from '../lib/jobsApi'
+import { listJobs, patchJob } from '../lib/jobsApi'
 import { getApiErrorMessage } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
 import { Alert } from '../components/ui/Alert'
@@ -49,7 +49,7 @@ export default function ApplicationsPage() {
         priority: priorityFilter,
       })
       if (requestId !== requestRef.current) return
-      setJobs(data)
+      setJobs(data.content || [])
       setError('')
     } catch (err) {
       if (requestId !== requestRef.current) return
@@ -76,7 +76,7 @@ export default function ApplicationsPage() {
     setJobs((prev) => prev.map((j) => (j.jobId === job.jobId ? { ...j, status: newStatus } : j)))
 
     try {
-      const saved = await updateJob(job.jobId, { ...job, status: newStatus })
+      const saved = await patchJob(job.jobId, { status: newStatus })
       setJobs((prev) => prev.map((j) => (j.jobId === saved.jobId ? saved : j)))
       setError('')
     } catch (err) {
