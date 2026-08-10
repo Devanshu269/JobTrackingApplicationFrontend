@@ -1,12 +1,15 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
-import { updateProfile, setDefaultResume, clearDefaultResume, changePassword } from '../lib/userApi'
+import { updateProfile, changePassword } from '../lib/userApi'
 import { getApiErrorMessage, getApiFieldErrors } from '../lib/api'
 import { checkPassword, PASSWORD_RULES } from '../lib/validation'
 import { Button } from '../components/ui/Button'
 import { Field, Input } from '../components/ui/Modal'
 import { Alert } from '../components/ui/Alert'
+import { FileDropZone } from '../components/ui/FileDropZone'
+import { DefaultResumeEditor } from '../components/DefaultResumeEditor'
+import { uploadFile, isUploadUnavailable, FILE_PURPOSES, IMAGE_ACCEPT, MAX_IMAGE_MB } from '../lib/filesApi'
 
 export default function SettingsPage() {
   const { user, logout, logoutAll, applyUser } = useAuth()
@@ -77,6 +80,8 @@ function ProfileSection({ user, initials, applyUser }) {
   const [firstName, setFirstName] = useState(user.userFirstName ?? '')
   const [lastName, setLastName] = useState(user.userLastName ?? '')
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl ?? '')
+  const [avatarFile, setAvatarFile] = useState(null)
+  const [progress, setProgress] = useState(null)
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -86,12 +91,14 @@ function ProfileSection({ user, initials, applyUser }) {
     setFirstName(user.userFirstName ?? '')
     setLastName(user.userLastName ?? '')
     setAvatarUrl(user.avatarUrl ?? '')
+    setAvatarFile(null)
   }, [user])
 
   const dirty =
     firstName !== (user.userFirstName ?? '') ||
     lastName !== (user.userLastName ?? '') ||
-    avatarUrl !== (user.avatarUrl ?? '')
+    avatarUrl !== (user.avatarUrl ?? '') ||
+    Boolean(avatarFile)
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -112,10 +119,24 @@ function ProfileSection({ user, initials, applyUser }) {
 
     setSaving(true)
     try {
-      const updated = await updateProfile({ firstName, lastName, avatarUrl })
+      // Deferred upload: the picked image is only sent now, on save.
+      let nextAvatarUrl = avatarUrl
+      if (avatarFile) {
+        nextAvatarUrl = await uploadFile(avatarFile, FILE_PURPOSES.AVATAR, setProgress)
+        setProgress(null)
+        setAvatarUrl(nextAvatarUrl)
+        setAvatarFile(null)
+      }
+
+      const updated = await updateProfile({ firstName, lastName, avatarUrl: nextAvatarUrl })
       applyUser(updated)
       setSuccess('Profile updated.')
     } catch (err) {
+      setProgress(null)
+      if (isUploadUnavailable(err)) {
+        setError('Image uploads aren’t available yet. Paste a link instead for now.')
+        return
+      }
       const apiFieldErrors = getApiFieldErrors(err)
       if (apiFieldErrors) setFieldErrors(apiFieldErrors)
       setError(getApiErrorMessage(err, 'Could not update your profile.'))
@@ -176,17 +197,17 @@ function ProfileSection({ user, initials, applyUser }) {
           </Field>
         </div>
 
-        <Field
-          label="Avatar URL"
-          htmlFor="avatarUrl"
-          hint="A link to an image — there is no file upload yet."
-          error={fieldErrors.avatarUrl}
-        >
-          <Input
-            id="avatarUrl"
+        <Field label="Avatar" error={fieldErrors.avatarUrl}>
+          <FileDropZone
+            file={avatarFile}
             value={avatarUrl}
-            onChange={(e) => setAvatarUrl(e.target.value)}
-            placeholder="https://…"
+            onFile={setAvatarFile}
+            onValue={setAvatarUrl}
+            accept={IMAGE_ACCEPT}
+            maxMb={MAX_IMAGE_MB}
+            disabled={saving}
+            progress={progress}
+            emptyHint="PNG, JPG or WebP"
           />
         </Field>
 
@@ -204,85 +225,17 @@ function ProfileSection({ user, initials, applyUser }) {
 }
 
 function DefaultResumeSection({ user, applyUser }) {
-  const [resumeUrl, setResumeUrl] = useState(user.defaultResumeUrl ?? '')
-  const [error, setError] = useState('')
-  const [success, setSuccess] = useState('')
-  const [busy, setBusy] = useState(false)
-
-  useEffect(() => {
-    setResumeUrl(user.defaultResumeUrl ?? '')
-  }, [user])
-
-  async function handleSave(e) {
-    e.preventDefault()
-    setError('')
-    setSuccess('')
-    if (!resumeUrl.trim()) {
-      setError('Enter a URL, or use Remove to clear it.')
-      return
-    }
-    setBusy(true)
-    try {
-      applyUser(await setDefaultResume(resumeUrl.trim()))
-      setSuccess('Default resume saved.')
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not save your default resume.'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
-  async function handleClear() {
-    setError('')
-    setSuccess('')
-    setBusy(true)
-    try {
-      applyUser(await clearDefaultResume())
-      setSuccess('Default resume removed.')
-    } catch (err) {
-      setError(getApiErrorMessage(err, 'Could not remove your default resume.'))
-    } finally {
-      setBusy(false)
-    }
-  }
-
+  // Same editor the app shell opens in a modal — one implementation, two entry points.
   return (
     <section className="mt-6 glass-card p-6">
       <h2 className="text-sm font-semibold text-text">Default resume</h2>
       <p className="mt-1 text-[11px] text-text-muted">
-        Used to prefill the resume link when you add a new application.
+        Used to prefill the resume when you add a new application. Also reachable from the
+        avatar menu in the top bar.
       </p>
-
-      <form onSubmit={handleSave} className="mt-5 flex flex-col gap-4">
-        <Alert variant="error">{error}</Alert>
-        <Alert variant="success">{success}</Alert>
-
-        <Field label="Resume URL" htmlFor="defaultResumeUrl">
-          <Input
-            id="defaultResumeUrl"
-            value={resumeUrl}
-            onChange={(e) => setResumeUrl(e.target.value)}
-            placeholder="https://…"
-          />
-        </Field>
-
-        <div className="flex flex-wrap gap-3">
-          <Button type="submit" loading={busy} className="w-auto px-6 py-2 text-sm">
-            Save
-          </Button>
-          {user.defaultResumeUrl && (
-            <Button
-              type="button"
-              variant="ghost"
-              onClick={handleClear}
-              disabled={busy}
-              className="w-auto px-5 py-2 text-sm"
-            >
-              Remove
-            </Button>
-          )}
-        </div>
-      </form>
+      <div className="mt-5">
+        <DefaultResumeEditor user={user} applyUser={applyUser} />
+      </div>
     </section>
   )
 }

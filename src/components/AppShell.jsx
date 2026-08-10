@@ -1,7 +1,13 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { Logo } from './ui/Logo'
+import { NotificationBell } from './NotificationBell'
+import { DefaultResumeEditor } from './DefaultResumeEditor'
+import { Modal } from './ui/Modal'
+import { filenameFromUrl } from '../lib/filesApi'
+import { clearDefaultResume } from '../lib/userApi'
+import { getApiErrorMessage } from '../lib/api'
 
 const NAV_ITEMS = [
   {
@@ -36,6 +42,16 @@ const NAV_ITEMS = [
     ),
   },
   {
+    to: '/JobJuggler/activity',
+    label: 'Activity',
+    icon: (
+      <svg viewBox="0 0 20 20" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="10" cy="10" r="8" />
+        <path d="M10 5v5l3.5 2" />
+      </svg>
+    ),
+  },
+  {
     to: '/JobJuggler/settings',
     label: 'Settings',
     icon: (
@@ -48,10 +64,33 @@ const NAV_ITEMS = [
 ]
 
 export function AppShell() {
-  const { user, logout } = useAuth()
+  const { user, logout, applyUser } = useAuth()
   const navigate = useNavigate()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [userMenuOpen, setUserMenuOpen] = useState(false)
+  const [resumeModalOpen, setResumeModalOpen] = useState(false)
+  const [resumePopoverOpen, setResumePopoverOpen] = useState(false)
+  const [resumeRemoving, setResumeRemoving] = useState(false)
+  const [resumeRemoveError, setResumeRemoveError] = useState('')
+
+  /**
+   * Derived from state the shell already has — no extra request. Only genuinely actionable
+   * items belong here; an empty list means no dot, which is the point.
+   */
+  const notifications = useMemo(() => {
+    const items = []
+    if (user && !user.defaultResumeUrl) {
+      items.push({
+        id: 'no-default-resume',
+        tone: 'warning',
+        title: 'No default resume',
+        body: 'Set one and it will prefill every new application you add.',
+        actionLabel: 'Add a resume',
+        onAction: () => setResumeModalOpen(true),
+      })
+    }
+    return items
+  }, [user])
 
   // No mock fallback: AppShell only renders inside ProtectedRoute, which waits for /me to
   // resolve. A missing user here means a real failure and should look like one, not silently
@@ -61,6 +100,21 @@ export function AppShell() {
   async function handleLogout() {
     await logout()
     navigate('/login')
+  }
+
+  const hasResume = Boolean(user?.defaultResumeUrl)
+
+  async function handleResumeRemove() {
+    setResumeRemoving(true)
+    setResumeRemoveError('')
+    try {
+      applyUser(await clearDefaultResume())
+      setResumePopoverOpen(false)
+    } catch (err) {
+      setResumeRemoveError(getApiErrorMessage(err, 'Could not remove resume.'))
+    } finally {
+      setResumeRemoving(false)
+    }
   }
 
   return (
@@ -163,17 +217,87 @@ export function AppShell() {
 
           {/* Right side */}
           <div className="ml-auto flex items-center gap-3">
-            {/* Notifications bell (placeholder) */}
-            <button
-              type="button"
-              className="relative rounded-lg p-2 text-text-muted transition-colors duration-200 hover:bg-surface-alt hover:text-text"
-              aria-label="Notifications"
-            >
-              <svg viewBox="0 0 18 18" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M9 2a5 5 0 00-5 5v3l-1.5 2.5h13L14 10V7a5 5 0 00-5-5zM7 15a2 2 0 004 0" />
-              </svg>
-              <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-danger" aria-hidden="true" />
-            </button>
+            <NotificationBell notifications={notifications} />
+
+            {/* Default resume quick-access */}
+            <div className="relative">
+              <button
+                type="button"
+                onClick={() => {
+                  if (hasResume) {
+                    setResumePopoverOpen((v) => !v)
+                  } else {
+                    setResumeModalOpen(true)
+                  }
+                }}
+                className="relative rounded-lg p-2 text-text-muted transition-colors duration-200 hover:bg-surface-alt hover:text-text"
+                aria-label={hasResume ? `Default resume: ${filenameFromUrl(user.defaultResumeUrl)}` : 'Set default resume'}
+                title={hasResume ? filenameFromUrl(user.defaultResumeUrl) : 'No default resume set'}
+              >
+                <svg viewBox="0 0 18 18" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M10.5 1.5H5a1.5 1.5 0 00-1.5 1.5v12A1.5 1.5 0 005 16.5h8a1.5 1.5 0 001.5-1.5V6z" />
+                  <path d="M10.5 1.5V6H14.5" />
+                  <path d="M7 10h4M7 13h2.5" />
+                </svg>
+                {/* Status dot */}
+                <span
+                  className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full ring-2 ring-bg"
+                  style={{ backgroundColor: hasResume ? '#4ade9b' : '#fbbf24' }}
+                  aria-hidden="true"
+                />
+              </button>
+
+              {/* Resume popover (only when resume is set) */}
+              {resumePopoverOpen && hasResume && (
+                <>
+                  <div className="fixed inset-0 z-40" onClick={() => setResumePopoverOpen(false)} aria-hidden="true" />
+                  <div className="absolute right-0 top-full z-50 mt-2 w-64 animate-fade-in-down rounded-xl border border-border/60 bg-surface/95 p-3 shadow-xl shadow-black/40 backdrop-blur-xl">
+                    <div className="flex items-start gap-2.5">
+                      <span className="mt-0.5 text-base" aria-hidden="true">📄</span>
+                      <div className="min-w-0 flex-1">
+                        <p className="truncate text-sm font-medium text-text">
+                          {filenameFromUrl(user.defaultResumeUrl)}
+                        </p>
+                        <p className="text-[11px] text-text-muted">Default resume</p>
+                      </div>
+                    </div>
+
+                    {resumeRemoveError && (
+                      <p className="mt-2 text-[11px] text-danger">{resumeRemoveError}</p>
+                    )}
+
+                    <div className="mt-3 flex items-center gap-2 border-t border-border/40 pt-3">
+                      <a
+                        href={user.defaultResumeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="flex-1 rounded-md border border-border/50 bg-surface-alt/40 px-2.5 py-1.5 text-center text-[11px] font-medium text-text transition-colors hover:bg-surface-alt/70"
+                      >
+                        Open ↗
+                      </a>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setResumePopoverOpen(false)
+                          setResumeModalOpen(true)
+                        }}
+                        className="flex-1 rounded-md border border-border/50 bg-surface-alt/40 px-2.5 py-1.5 text-center text-[11px] font-medium text-text transition-colors hover:bg-surface-alt/70"
+                      >
+                        Change
+                      </button>
+                      <button
+                        type="button"
+                        onClick={handleResumeRemove}
+                        disabled={resumeRemoving}
+                        className="flex-1 rounded-md border border-danger/30 bg-danger/5 px-2.5 py-1.5 text-center text-[11px] font-medium text-danger transition-colors hover:bg-danger/10 disabled:opacity-50"
+                      >
+                        {resumeRemoving ? '…' : 'Remove'}
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* User avatar + dropdown */}
             <div className="relative">
@@ -203,6 +327,33 @@ export function AppShell() {
                       </p>
                       <p className="truncate text-[11px] text-text-muted">{user?.email}</p>
                     </div>
+
+                    {/* Default resume — reachable from anywhere, so adding a job never means
+                        a detour through Settings first. */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setUserMenuOpen(false)
+                        setResumeModalOpen(true)
+                      }}
+                      className="mt-1.5 flex w-full items-start gap-2.5 rounded-lg px-3 py-2 text-left transition-all duration-200 hover:bg-surface-alt/60"
+                    >
+                      <svg viewBox="0 0 16 16" className="mt-0.5 h-4 w-4 shrink-0 text-text-muted" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M9 1.5H4a1 1 0 00-1 1v11a1 1 0 001 1h8a1 1 0 001-1V5.5z" />
+                        <path d="M9 1.5v4h4" />
+                      </svg>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm text-text">Default resume</span>
+                        <span className="block truncate text-[11px] text-text-muted">
+                          {user?.defaultResumeUrl ? (
+                            filenameFromUrl(user.defaultResumeUrl)
+                          ) : (
+                            <span className="text-[#fbbf24]">Not set yet</span>
+                          )}
+                        </span>
+                      </span>
+                    </button>
+
                     {/* Logout */}
                     <button
                       type="button"
@@ -229,6 +380,21 @@ export function AppShell() {
           <Outlet />
         </main>
       </div>
+
+      {user && (
+        <Modal
+          open={resumeModalOpen}
+          onClose={() => setResumeModalOpen(false)}
+          title="Default resume"
+          subtitle="Prefills the resume on every new application you add."
+        >
+          <DefaultResumeEditor
+            user={user}
+            applyUser={applyUser}
+            onSaved={() => setResumeModalOpen(false)}
+          />
+        </Modal>
+      )}
     </div>
   )
 }

@@ -120,3 +120,14 @@ export async function listUpcomingRounds() {
   const { data } = await api.get('/api/rounds/upcoming')
   return data
 }
+
+// ---- Activity log ------------------------------------------------------------------------
+
+/**
+ * Real append-only audit trail. Replaces the derived feed from `buildActivityFeed()`.
+ * `limit` defaults to 20; the backend clamps it to 1–100 rather than rejecting out-of-range.
+ */
+export async function listActivity(limit = 20) {
+  const { data } = await api.get('/api/activity', { params: { limit } })
+  return data
+}

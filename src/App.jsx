@@ -13,6 +13,7 @@ import DashboardPage from './pages/DashboardPage'
 import ApplicationsPage from './pages/ApplicationsPage'
 import JobDetailPage from './pages/JobDetailPage'
 import AnalyticsPage from './pages/AnalyticsPage'
+import ActivityPage from './pages/ActivityPage'
 import SettingsPage from './pages/SettingsPage'
 
 export default function App() {
@@ -50,6 +51,7 @@ export default function App() {
               <Route path="applications" element={<ApplicationsPage />} />
               <Route path="applications/:jobId" element={<JobDetailPage />} />
               <Route path="analytics" element={<AnalyticsPage />} />
+              <Route path="activity" element={<ActivityPage />} />
               <Route path="settings" element={<SettingsPage />} />
             </Route>
 

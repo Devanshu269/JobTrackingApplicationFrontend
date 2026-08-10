@@ -4,8 +4,17 @@ import { Button } from './ui/Button'
 import { Alert } from './ui/Alert'
 import { JOB_STATUSES, JOB_TYPES, JOB_PRIORITIES } from '../data/jobConstants'
 import { createJob, updateJob } from '../lib/jobsApi'
+import { setDefaultResume } from '../lib/userApi'
 import { getApiErrorMessage, getApiFieldErrors } from '../lib/api'
 import { toDateInputValue, mergeDateIntoDateTime } from '../lib/dates'
+import { FileDropZone } from './ui/FileDropZone'
+import {
+  uploadFile,
+  isUploadUnavailable,
+  FILE_PURPOSES,
+  DOCUMENT_ACCEPT,
+  MAX_DOCUMENT_MB,
+} from '../lib/filesApi'
 
 /**
  * Create/edit form for a job application.
@@ -18,22 +27,56 @@ import { toDateInputValue, mergeDateIntoDateTime } from '../lib/dates'
  * @param {string|null} props.defaultResumeUrl — from `/api/auth/me`, prefills new jobs.
  * @param {(job: object) => void} props.onSaved
  */
-export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved }) {
+export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, onUserChanged }) {
   const isEdit = Boolean(job)
   const [form, setForm] = useState(() => blankForm(defaultResumeUrl))
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('')
   const [saving, setSaving] = useState(false)
 
+  // Deferred uploads: a picked file waits here and is only sent when the user saves.
+  const [resumeMode, setResumeMode] = useState('default') // 'default' | 'file' | 'none'
+  const [resumeFile, setResumeFile] = useState(null)
+  const [coverFile, setCoverFile] = useState(null)
+  const [alsoSetDefault, setAlsoSetDefault] = useState(false)
+  const [progress, setProgress] = useState({ resume: null, cover: null })
+
   useEffect(() => {
     if (!open) return
     setForm(job ? { ...job } : blankForm(defaultResumeUrl))
     setFieldErrors({})
     setError('')
-  }, [open, job, defaultResumeUrl])
+    setResumeFile(null)
+    setCoverFile(null)
+    setAlsoSetDefault(false)
+    setProgress({ resume: null, cover: null })
+
+    // On edit, a resume matching the stored default is shown as "use my default" so saving
+    // an unrelated field doesn't quietly detach it from the default.
+    const existing = job ? job.resumeUrl : defaultResumeUrl
+    if (existing && defaultResumeUrl && existing === defaultResumeUrl) setResumeMode('default')
+    else if (existing) setResumeMode('file')
+    else setResumeMode(defaultResumeUrl && !isEdit ? 'default' : 'none')
+  }, [open, job, defaultResumeUrl, isEdit])
 
   function set(field, value) {
     setForm((prev) => ({ ...prev, [field]: value }))
+  }
+
+  function chooseResumeMode(mode) {
+    setResumeMode(mode)
+    if (mode === 'default') {
+      setResumeFile(null)
+      setAlsoSetDefault(false)
+      set('resumeUrl', defaultResumeUrl ?? '')
+    } else if (mode === 'none') {
+      setResumeFile(null)
+      setAlsoSetDefault(false)
+      set('resumeUrl', '')
+    } else if (form.resumeUrl === defaultResumeUrl) {
+      // Switching off "default" shouldn't leave the default's URL behind as a stale value.
+      set('resumeUrl', '')
+    }
   }
 
   function validate() {
@@ -55,19 +98,61 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved }) 
     setError('')
     if (!validate()) return
 
-    // Date inputs only carry a day; keep the original clock time when the day is unchanged.
-    const payload = {
-      ...form,
-      appliedDate: mergeDateIntoDateTime(form.appliedDate?.slice(0, 10), job?.appliedDate),
-      followUpDate: mergeDateIntoDateTime(form.followUpDate?.slice(0, 10), job?.followUpDate),
-    }
-
     setSaving(true)
     try {
+      // ---- 1. Upload any staged files -----------------------------------------------------
+      // Uploads are deferred to save time, so they run here rather than on drop. Each result
+      // is written back into form state: if the job write then fails validation, hitting Save
+      // again reuses the uploaded URL instead of uploading the same file twice.
+      let resumeUrl = resumeMode === 'none' ? '' : form.resumeUrl
+      let coverLetterUrl = form.coverLetterUrl
+
+      if (resumeMode === 'file' && resumeFile) {
+        resumeUrl = await uploadFile(resumeFile, FILE_PURPOSES.RESUME, (p) =>
+          setProgress((prev) => ({ ...prev, resume: p })),
+        )
+        setProgress((prev) => ({ ...prev, resume: null }))
+        set('resumeUrl', resumeUrl)
+        setResumeFile(null)
+
+        if (alsoSetDefault) {
+          // Best-effort: failing to update the default must not lose the job the user is saving.
+          try {
+            onUserChanged?.(await setDefaultResume(resumeUrl))
+          } catch {
+            /* the job save below is what matters */
+          }
+        }
+      }
+
+      if (coverFile) {
+        coverLetterUrl = await uploadFile(coverFile, FILE_PURPOSES.COVER_LETTER, (p) =>
+          setProgress((prev) => ({ ...prev, cover: p })),
+        )
+        setProgress((prev) => ({ ...prev, cover: null }))
+        set('coverLetterUrl', coverLetterUrl)
+        setCoverFile(null)
+      }
+
+      // ---- 2. Write the job ---------------------------------------------------------------
+      // Date inputs only carry a day; keep the original clock time when the day is unchanged.
+      const payload = {
+        ...form,
+        resumeUrl,
+        coverLetterUrl,
+        appliedDate: mergeDateIntoDateTime(form.appliedDate?.slice(0, 10), job?.appliedDate),
+        followUpDate: mergeDateIntoDateTime(form.followUpDate?.slice(0, 10), job?.followUpDate),
+      }
+
       const saved = isEdit ? await updateJob(job.jobId, payload) : await createJob(payload)
       onSaved(saved)
       onClose()
     } catch (err) {
+      setProgress({ resume: null, cover: null })
+      if (isUploadUnavailable(err)) {
+        setError('File uploads aren’t available yet. Paste a link instead for now.')
+        return
+      }
       // A 400 from bean validation carries a field map; an invalid enum or malformed body
       // does not, so fall back to the top-level message.
       const apiFieldErrors = getApiFieldErrors(err)
@@ -244,28 +329,95 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved }) 
           </div>
         </fieldset>
 
-        <div className="grid gap-4 sm:grid-cols-2">
-          <Field
-            label="Resume URL"
-            htmlFor="resumeUrl"
-            hint={!isEdit && defaultResumeUrl ? 'Prefilled from your default resume.' : undefined}
-          >
-            <Input
-              id="resumeUrl"
-              value={form.resumeUrl ?? ''}
-              onChange={(e) => set('resumeUrl', e.target.value)}
-              placeholder="https://…"
-            />
-          </Field>
-          <Field label="Cover letter URL" htmlFor="coverLetterUrl">
-            <Input
-              id="coverLetterUrl"
-              value={form.coverLetterUrl ?? ''}
-              onChange={(e) => set('coverLetterUrl', e.target.value)}
-              placeholder="https://…"
-            />
-          </Field>
-        </div>
+        <fieldset className="rounded-lg border border-border/50 p-4">
+          <legend className="px-1.5 text-xs font-medium text-text-muted">Documents</legend>
+
+          <div className="grid gap-5 sm:grid-cols-2">
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-text-muted">Resume</span>
+
+              {/* Three-way choice. Nothing here blocks saving — resumeUrl is optional. */}
+              <div className="flex flex-wrap gap-1.5">
+                <ModeChip
+                  active={resumeMode === 'default'}
+                  disabled={!defaultResumeUrl}
+                  onClick={() => chooseResumeMode('default')}
+                  title={defaultResumeUrl ? undefined : 'You haven’t set a default resume yet'}
+                >
+                  Use my default
+                </ModeChip>
+                <ModeChip active={resumeMode === 'file'} onClick={() => chooseResumeMode('file')}>
+                  Upload
+                </ModeChip>
+                <ModeChip active={resumeMode === 'none'} onClick={() => chooseResumeMode('none')}>
+                  Skip
+                </ModeChip>
+              </div>
+
+              {resumeMode === 'default' && (
+                <p className="rounded-lg border border-border/50 bg-surface-alt/40 px-3 py-2 text-[11px] text-text-muted">
+                  {defaultResumeUrl ? (
+                    <>
+                      Using{' '}
+                      <a
+                        href={defaultResumeUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-primary hover:text-primary-hover"
+                      >
+                        your default resume ↗
+                      </a>
+                    </>
+                  ) : (
+                    'No default resume set — upload one below, or set it in Settings.'
+                  )}
+                </p>
+              )}
+
+              {resumeMode === 'file' && (
+                <>
+                  <FileDropZone
+                    file={resumeFile}
+                    value={form.resumeUrl ?? ''}
+                    onFile={setResumeFile}
+                    onValue={(url) => set('resumeUrl', url)}
+                    accept={DOCUMENT_ACCEPT}
+                    maxMb={MAX_DOCUMENT_MB}
+                    disabled={saving}
+                    progress={progress.resume}
+                  />
+                  {resumeFile && (
+                    <label className="flex cursor-pointer items-center gap-2">
+                      <input
+                        type="checkbox"
+                        checked={alsoSetDefault}
+                        onChange={(e) => setAlsoSetDefault(e.target.checked)}
+                        className="h-3.5 w-3.5 cursor-pointer accent-[#7c6bf5]"
+                      />
+                      <span className="text-[11px] text-text-muted">
+                        Also set as my default resume
+                      </span>
+                    </label>
+                  )}
+                </>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-2">
+              <span className="text-xs font-medium text-text-muted">Cover letter</span>
+              <FileDropZone
+                file={coverFile}
+                value={form.coverLetterUrl ?? ''}
+                onFile={setCoverFile}
+                onValue={(url) => set('coverLetterUrl', url)}
+                accept={DOCUMENT_ACCEPT}
+                maxMb={MAX_DOCUMENT_MB}
+                disabled={saving}
+                progress={progress.cover}
+              />
+            </div>
+          </div>
+        </fieldset>
 
         <Field label="Notes" htmlFor="notes">
           <Textarea
@@ -287,6 +439,25 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved }) 
         </div>
       </form>
     </Modal>
+  )
+}
+
+function ModeChip({ active, disabled, onClick, title, children }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      disabled={disabled}
+      title={title}
+      aria-pressed={active}
+      className={`rounded-md border px-2.5 py-1 text-[11px] font-medium transition-all duration-200 ${
+        active
+          ? 'border-primary/50 bg-primary/15 text-primary'
+          : 'border-border/60 bg-surface-alt/40 text-text-muted hover:text-text'
+      } ${disabled ? 'cursor-not-allowed opacity-40' : 'cursor-pointer'}`}
+    >
+      {children}
+    </button>
   )
 }
 

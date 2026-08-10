@@ -223,7 +223,7 @@ All scoped to the logged-in user automatically — you never send a userId, and 
 | `notes` | string | no | |
 | `appliedDate` | ISO date-time | no | `"2026-08-01T10:00:00"` — no timezone/offset, no trailing `Z` |
 | `followUpDate` | ISO date-time | no | same format |
-| `reminderEnabled` | boolean | no | defaults to `false` if omitted or null |
+| `reminderEnabled` | boolean | no | defaults to `false` if omitted or null. **Now actually acted on** — see [Follow-up reminders](#follow-up-reminders) |
 
 #### Worked examples
 
@@ -421,6 +421,52 @@ Semantics worth knowing:
 - Sorted by `roundDate` ascending across all jobs.
 - No rounds → `[]` with a 200, never a 404.
 
+### Activity log
+
+| Method | URL | Auth | Request body | Success | Response body |
+|---|---|---|---|---|---|
+| GET | `/api/activity` | **yes** | — (`?limit=` below) | 200 | `ActivityResponseDto[]`, newest first |
+
+**This replaces the derived feed in `src/lib/activity.js`.** It's a real append-only audit trail written from the service layer on every mutation, so it does the three things the derived version documented as impossible: a full edit history rather than one event per job, actual `previousStatus → status` transitions, and events for deleted jobs.
+
+The response shape deliberately matches what `buildActivityFeed()` already returns, plus `previousStatus`:
+
+```jsonc
+// GET /api/activity?limit=20 → 200
+[
+  { "id": 7, "action": "JOB_DELETED",     "jobId": 12, "companyName": "Stripe",
+    "jobRole": "Senior FE", "status": "OFFER",     "previousStatus": null,
+    "timestamp": "2026-08-09T23:41:02.118" },
+  { "id": 6, "action": "OFFER_RECEIVED",  "jobId": 12, "companyName": "Stripe",
+    "jobRole": "Senior FE", "status": "OFFER",     "previousStatus": "INTERVIEW",
+    "timestamp": "2026-08-09T23:40:55.902" },
+  { "id": 4, "action": "STATUS_CHANGED",  "jobId": 12, "companyName": "Stripe",
+    "jobRole": "Senior FE", "status": "INTERVIEW", "previousStatus": "APPLIED",
+    "timestamp": "2026-08-09T23:40:51.447" }
+]
+```
+
+**Actions emitted:** `JOB_CREATED`, `JOB_UPDATED` (an edit that didn't change status), `STATUS_CHANGED`, `OFFER_RECEIVED`, `REJECTED`, `ROUND_SCHEDULED`, `JOB_DELETED`.
+
+⚠️ **`JOB_DELETED` is new** — it isn't in the current `ACTIVITY_ACTIONS` map, so `describeActivity()` would fall through to the `JOB_UPDATED` wording and render "Updated Stripe" for a deletion. Add an entry for it when wiring this up.
+
+`previousStatus` is only populated on the three status-transition actions; it's null elsewhere. `companyName`/`jobRole` are **snapshots taken at write time**, not joins — that's what lets a deleted job's events still render, and it also means they show the name *as it was then*, so renaming a company doesn't rewrite history.
+
+**`?limit=`** defaults to 20 and is clamped to 1–100 rather than rejected, so `?limit=9999` returns 100 instead of a 400. Unlike `/api/jobs` this table only grows, hence the hard ceiling.
+
+### Follow-up reminders
+
+Not an endpoint — a **server-side scheduled job**, but it changes what the existing `reminderEnabled`/`followUpDate` fields mean. They used to be stored and never read; now they actually send email.
+
+- A job is emailed when `reminderEnabled = true`, `followUpDate` has passed, no reminder has been sent yet, and `status != REJECTED` (chasing a rejection is noise — `OFFER` is deliberately *not* excluded, since following up on an offer is normal).
+- **Exactly one email per scheduled follow-up.** The backend stamps a `reminderSentAt` marker on send; it's not exposed in the API.
+- **Changing `followUpDate` re-arms it** — a new date clears the marker, so rescheduling sends again. Editing any *other* field does not.
+- Runs hourly by default (`app.reminders.cron`), capped at 50 per tick, and can be switched off with `REMINDERS_ENABLED=false`.
+
+For the UI this means the follow-up date field is no longer inert, and the **notification bell has a real second source** beyond "no default resume set". There's no endpoint listing pending reminders yet — if the bell should show them, the closest existing data is `GET /api/jobs` filtered client-side on `followUpDate <= now && reminderEnabled`. Note that reproduces "is it due", not "was an email sent", since `reminderSentAt` isn't exposed. Say the word if the bell needs it and it can be added to the response DTO.
+
+The three notification toggles removed from `SettingsPage` are still correctly removed — per-channel notification preferences remain unbacked. What exists now is one hardcoded behaviour, not user-configurable settings.
+
 ### Enum values (exact strings — these go over JSON as-is)
 
 - **Status:** `WISHLIST`, `APPLIED`, `INTERVIEW`, `OFFER`, `REJECTED`
@@ -450,9 +496,9 @@ Genuinely malformed JSON (not just a bad value) gives `message: "Malformed reque
 
 ### Not built yet
 
-- **File upload** — Cloudinary isn't integrated. `resumeUrl`, `coverLetterUrl`, `avatarUrl` and `defaultResumeUrl` are all plain strings you set yourself; nothing accepts a file today.
+- **File upload** — `POST /api/files` is **not built yet**, but the frontend is already written against it. See [File uploads](#file-uploads-frontend-ready-backend-pending) for the exact contract the UI expects. Until it exists, the drop zones fall back to "paste a link" and an upload attempt shows *"File uploads aren't available yet"* rather than a generic error.
 - **AI features** — the `job_ai_results` table and entity exist, but there are no endpoints and Gemini isn't integrated.
-- **Pagination** — `GET /api/jobs` returns every matching row. Fine now, will need `Pageable` once someone has hundreds of applications.
+- **Pagination** — `GET /api/jobs` returns every matching row. Fine now, will need `Pageable` once someone has hundreds of applications. ⚠️ **When it lands, the weekly-trend chart silently breaks**: it's derived client-side from the full jobs list, so it would start computing over one page instead of everything. Either add a real trend endpoint at that point, or have the client request an unpaged list specifically for the chart.
 - **`PATCH` semantics** — job and round updates are full-replace only. If you build a kanban board where dragging a card changes just `status`, you'll need to send the entire job object back, or add a real `PATCH` endpoint.
 
 Error responses (4xx) all share this shape:
@@ -511,6 +557,9 @@ Every page below is wired to the real API. There is no mock data anywhere in the
 - **Create / edit job** ([JobFormModal.jsx](src/components/JobFormModal.jsx)) — `POST`/`PUT /api/jobs`. New jobs prefill `resumeUrl` from `defaultResumeUrl` on `/me`.
 - **Analytics** ([AnalyticsPage.jsx](src/pages/AnalyticsPage.jsx)) — `GET /api/jobs/stats` for the funnel and donut; the trend is derived like the dashboard's.
 - **Settings** ([SettingsPage.jsx](src/pages/SettingsPage.jsx)) — `PUT /api/users/me`, change-password (only rendered when `provider === 'LOCAL'`), default-resume set/clear, logout and `logout-all`.
+- **App shell** ([AppShell.jsx](src/components/AppShell.jsx)) — the avatar menu opens the default-resume editor in a modal, so setting one never requires a detour to Settings mid-flow. It renders [DefaultResumeEditor.jsx](src/components/DefaultResumeEditor.jsx), the same component the Settings card uses, so the upload semantics can't drift between the two.
+
+  The **notification bell** is now driven by real state via [NotificationBell.jsx](src/components/NotificationBell.jsx) — it previously had a hardcoded red dot that was always lit and therefore meaningless. Today the only entry is "no default resume set", derived from the `user` already in context with no extra request; no entries means no dot. Follow-up reminders and upcoming interviews are the natural next sources, so the component takes a notifications array rather than fetching anything itself.
 
 **Kanban drag-and-drop:** handled. `KanbanBoard` passes the *whole job object* to `onStatusChange`, not just an id, so the caller can send a complete full-replace `PUT`. The move is applied optimistically and rolled back if the request fails.
 
@@ -619,9 +668,51 @@ These live in `mockStats.js` and are rendered by `DashboardPage`/`AnalyticsPage`
 |---|---|---|
 | `UPCOMING_INTERVIEWS` | ✅ **live** | `GET /api/rounds/upcoming`, added for this widget. One request across all jobs, company/role flattened in, so no N+1. |
 | `WEEKLY_TREND` | ✅ **live, derived client-side** | `buildWeeklyTrend()` in [src/lib/dates.js](src/lib/dates.js) buckets the jobs list by `appliedDate` (falling back to `createdAt`) over the last 7 days. Comparison is on the `YYYY-MM-DD` prefix, so it never touches timezone conversion. No backend work needed. |
-| `RECENT_ACTIVITY` | ⚠️ **live, but derived** | Rebuilt from job `createdAt`/`updatedAt` in [src/lib/activity.js](src/lib/activity.js). Real data, real limits — see [Recent Activity](#recent-activity-derived-now-logged-later) below. |
+| `RECENT_ACTIVITY` | ✅ **endpoint now exists** | `GET /api/activity` — a real append-only audit log, no longer derived. Swapping `buildActivityFeed(jobs)` for a fetch removes all three documented limitations at once (edit history, actual transitions, deleted-job events). Add a `JOB_DELETED` entry to `ACTIVITY_ACTIONS` when wiring it — see [Activity log](#activity-log). |
 
 The mock's `UPCOMING_INTERVIEWS` shape differed from the API's: it had `date` plus a preformatted `time` string (`"10:00 AM PST"`) and a `companyIcon`. The API gives one `roundDate` and no icon, so the dashboard formats the time via `formatDateTime()` and uses `CompanyAvatar`. The backend stores no timezone, so times render in the browser's local zone.
+
+### File uploads: frontend ready, backend pending
+
+The UI ships with drag-and-drop zones for the job resume, the job cover letter, the default resume and the avatar. They are wired to one endpoint that **does not exist yet**. Building it to this contract requires no frontend change.
+
+**`POST /api/files`** — auth required, `multipart/form-data`
+
+| Part | Type | Notes |
+|---|---|---|
+| `file` | file | the upload |
+| `purpose` | string | `resume` \| `cover-letter` \| `avatar` — picks the storage prefix |
+
+```jsonc
+// 201 (or 200)
+{ "url": "https://files.example.com/users/11/resumes/9f3c…/Frontend_Resume.pdf" }
+```
+
+The response only needs `url`. Everything downstream — `resumeUrl`, `coverLetterUrl`, `avatarUrl`, `defaultResumeUrl` — stays a plain string column, so **no schema change and no DTO change**. The upload endpoint is additive.
+
+Add `.requestMatchers("/api/files/**").authenticated()` to `SecurityConfig`.
+
+#### Decisions already made, and why
+
+- **Through the backend, not direct-to-R2.** The browser posts to Spring, Spring puts the object in R2. Presigned direct upload saves server bandwidth but turns your size and content-type limits into client-side suggestions and needs CORS on the bucket. Revisit only if bandwidth actually hurts.
+- **Public bucket, unguessable keys.** No signed URLs. Signing is easy; the cost is that URLs stop being stable, which means storing keys instead of URLs, re-signing on every read (a 50-job list = 100 signatures), and `<img src>` for avatars breaking when a signature expires — Bearer auth can't be attached to an image request. A UUID path segment is the proportionate choice here.
+- **Files are immutable and never deleted.** Every upload gets a fresh key; nothing is overwritten. This is what makes "use my default resume" safe: a job stores the URL that was current when it was created, so updating your default never rewrites what you actually sent to a company months ago. **Generate keys unconditionally — two uploads named `resume.pdf` must not collide.**
+- **Original filename in the key**, e.g. `users/{userId}/resumes/{uuid}/Frontend_Resume.pdf`. The URL becomes self-describing, so the UI can show a real filename with no extra column.
+- **No PII in the path** — user id only, never name or email. Put a custom domain in front of the bucket so you can move buckets later without invalidating stored URLs.
+
+#### Validation is your job, not the client's
+
+The frontend checks type and size before staging a file (`5 MB` for documents, `2 MB` for images, `.pdf/.doc/.docx` and `png/jpeg/webp`). That is fast feedback, **not a control** — all of it is trivially bypassed. Re-check both server-side, and prefer sniffing actual content over trusting the declared `Content-Type`. Also set `spring.servlet.multipart.max-file-size` / `max-request-size`, or Spring rejects large uploads before your handler runs, with a different error shape than the rest of the API.
+
+#### Upload timing (already decided: deferred)
+
+Files upload **on save**, not on drop. `FileDropZone` deliberately does no uploading — it surfaces a `File` and the parent form sends it during submit. Consequences worth knowing:
+
+- Cancelling a form never leaves a stray object in storage.
+- Save is a two-step operation: upload, then write the record. If the record write then fails validation, the already-uploaded URL is cached in form state, so hitting Save again does **not** re-upload the same file.
+- Uploading a job resume with *"also set as my default"* ticked calls `PUT /api/users/me/default-resume` too. That call is best-effort — if it fails, the job still saves, because losing the user's typed-in job to a default-resume error would be the worse outcome.
+
+Everything lives in [src/lib/filesApi.js](src/lib/filesApi.js) and [src/components/ui/FileDropZone.jsx](src/components/ui/FileDropZone.jsx). Switching to upload-on-drop later means moving the `uploadFile()` call out of the submit handler — the widget doesn't change.
 
 ### Recent Activity: derived now, logged later
 

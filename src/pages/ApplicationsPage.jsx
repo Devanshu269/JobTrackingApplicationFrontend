@@ -11,7 +11,7 @@ import { Alert } from '../components/ui/Alert'
 import { Button } from '../components/ui/Button'
 
 export default function ApplicationsPage() {
-  const { user } = useAuth()
+  const { user, applyUser } = useAuth()
   const navigate = useNavigate()
 
   const [jobs, setJobs] = useState([])
@@ -250,6 +250,7 @@ export default function ApplicationsPage() {
         defaultResumeUrl={user?.defaultResumeUrl}
         onClose={() => setFormOpen(false)}
         onSaved={handleSaved}
+        onUserChanged={applyUser}
       />
     </div>
   )

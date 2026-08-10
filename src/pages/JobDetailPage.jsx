@@ -16,7 +16,7 @@ import { Alert } from '../components/ui/Alert'
 export default function JobDetailPage() {
   const { jobId } = useParams()
   const navigate = useNavigate()
-  const { user } = useAuth()
+  const { user, applyUser } = useAuth()
 
   const [job, setJob] = useState(null)
   const [rounds, setRounds] = useState([])
@@ -319,6 +319,7 @@ export default function JobDetailPage() {
         defaultResumeUrl={user?.defaultResumeUrl}
         onClose={() => setEditOpen(false)}
         onSaved={setJob}
+        onUserChanged={applyUser}
       />
 
       <RoundFormModal

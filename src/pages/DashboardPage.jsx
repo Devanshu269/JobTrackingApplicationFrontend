@@ -2,10 +2,10 @@ import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import { JOB_STATUSES, KANBAN_COLUMNS, getStatusAccent } from '../data/jobConstants'
-import { listJobs, getJobStats, listUpcomingRounds } from '../lib/jobsApi'
+import { listJobs, getJobStats, listUpcomingRounds, listActivity } from '../lib/jobsApi'
 import { getApiErrorMessage } from '../lib/api'
 import { buildWeeklyTrend, formatDateTime, formatRelative } from '../lib/dates'
-import { buildActivityFeed, describeActivity, ACTIVITY_ACTIONS } from '../lib/activity'
+import { buildActivityFeed, mapApiActivity, describeActivity, ACTIVITY_ACTIONS } from '../lib/activity'
 import { StatCard } from '../components/ui/StatCard'
 import { CompanyAvatar } from '../components/ui/CompanyAvatar'
 import { Alert } from '../components/ui/Alert'
@@ -17,6 +17,7 @@ export default function DashboardPage() {
   const [jobs, setJobs] = useState([])
   const [stats, setStats] = useState(null)
   const [upcoming, setUpcoming] = useState([])
+  const [activity, setActivity] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
 
@@ -34,6 +35,15 @@ export default function DashboardPage() {
         setJobs(jobData)
         setStats(statsData)
         setUpcoming(upcomingData)
+
+        // Real audit log — falls back to derived feed if the endpoint isn't deployed yet.
+        try {
+          const activityData = await listActivity(8)
+          if (!cancelled) setActivity(mapApiActivity(activityData))
+        } catch {
+          if (!cancelled) setActivity(buildActivityFeed(jobData))
+        }
+
         setError('')
       } catch (err) {
         if (!cancelled) setError(getApiErrorMessage(err, 'Could not load your dashboard.'))
@@ -52,8 +62,7 @@ export default function DashboardPage() {
   const weeklyTrend = useMemo(() => buildWeeklyTrend(jobs), [jobs])
   const maxTrend = Math.max(...weeklyTrend.map((d) => d.count), 1)
 
-  // Derived from job timestamps, not an audit log — swap for GET /api/activity when it exists.
-  const activity = useMemo(() => buildActivityFeed(jobs), [jobs])
+
 
   const miniKanban = useMemo(
     () =>
@@ -217,7 +226,15 @@ export default function DashboardPage() {
         {/* Recent activity — derived from job createdAt/updatedAt, not an audit log.
             See src/lib/activity.js for what that can and cannot show. */}
         <div className="glass-card p-5">
-          <h2 className="text-sm font-semibold text-text">Recent Activity</h2>
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-text">Recent Activity</h2>
+            <Link
+              to="/JobJuggler/activity"
+              className="text-[11px] font-medium text-primary transition-colors duration-200 hover:text-primary-hover"
+            >
+              View all →
+            </Link>
+          </div>
           <div className="mt-4 flex flex-col">
             {!loading && activity.length === 0 && (
               <p className="py-6 text-center text-xs text-text-muted/70">
