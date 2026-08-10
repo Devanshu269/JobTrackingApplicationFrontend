@@ -15,6 +15,16 @@ export function StatCard({ label, value, icon, accentColor = '#7c6bf5', classNam
   const counted = useRef(false)
 
   useEffect(() => {
+    if (typeof value !== 'number') {
+      setDisplayed(value)
+      return
+    }
+
+    if (counted.current) {
+      setDisplayed(value)
+      return
+    }
+
     const el = ref.current
     if (!el) return
 

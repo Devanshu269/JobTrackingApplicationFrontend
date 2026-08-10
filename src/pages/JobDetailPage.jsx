@@ -5,6 +5,7 @@ import { getJob, listRounds, deleteJob, deleteRound } from '../lib/jobsApi'
 import { getApiErrorMessage } from '../lib/api'
 import { JOB_TYPES, JOB_PRIORITIES, ROUND_OUTCOMES, getStatusAccent } from '../data/jobConstants'
 import { formatDate, formatDateTime } from '../lib/dates'
+import { resolveFileUrl } from '../lib/filesApi'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { CompanyAvatar } from '../components/ui/CompanyAvatar'
 import { JobFormModal } from '../components/JobFormModal'
@@ -373,19 +374,36 @@ function Detail({ label, value }) {
 }
 
 function DetailLink({ label, href }) {
+  const [resolving, setResolving] = useState(false)
+
+  async function handleClick(e) {
+    e.preventDefault()
+    if (resolving) return
+    setResolving(true)
+    try {
+      const url = await resolveFileUrl(href)
+      window.open(url, '_blank', 'noopener,noreferrer')
+    } catch {
+      // If the resolve fails, try opening the raw URL as a last resort
+      window.open(href, '_blank', 'noopener,noreferrer')
+    } finally {
+      setResolving(false)
+    }
+  }
+
   return (
     <div>
       <dt className="text-[11px] font-medium uppercase tracking-wide text-text-muted">{label}</dt>
       <dd className="mt-0.5 truncate text-sm">
         {href ? (
-          <a
-            href={href}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-primary transition-colors hover:text-primary-hover"
+          <button
+            type="button"
+            onClick={handleClick}
+            disabled={resolving}
+            className="text-primary transition-colors hover:text-primary-hover disabled:opacity-60"
           >
-            Open ↗
-          </a>
+            {resolving ? 'Opening…' : 'Open ↗'}
+          </button>
         ) : (
           <span className="text-text">—</span>
         )}

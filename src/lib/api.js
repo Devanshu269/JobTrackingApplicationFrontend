@@ -34,8 +34,9 @@ async function requestNewAccessToken() {
   if (!refreshToken) throw new Error('No refresh token available')
 
   const { data } = await axios.post(`${baseURL}/api/auth/refresh`, { refreshToken })
-  // The backend does not rotate refresh tokens — the stored one stays valid.
-  setTokens({ token: data.token })
+  // Rotating refresh: `refreshToken` is a NEW value and the one just sent is dead.
+  // Fall back to the existing one only defensively — it should always be present.
+  setTokens({ token: data.token, refreshToken: data.refreshToken ?? refreshToken })
   return data.token
 }
 

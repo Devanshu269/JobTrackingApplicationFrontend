@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { filenameFromUrl, validateFile } from '../../lib/filesApi'
+import { filenameFromUrl, resolveFileUrl, validateFile } from '../../lib/filesApi'
 
 /**
  * Drag-and-drop file picker with a "paste a link instead" fallback.
@@ -97,14 +97,20 @@ export function FileDropZone({
             )}
           </div>
           {!isPending && value && (
-            <a
-              href={value}
-              target="_blank"
-              rel="noopener noreferrer"
+            <button
+              type="button"
+              onClick={async () => {
+                try {
+                  const url = await resolveFileUrl(value)
+                  window.open(url, '_blank', 'noopener,noreferrer')
+                } catch {
+                  window.open(value, '_blank', 'noopener,noreferrer')
+                }
+              }}
               className="shrink-0 text-[11px] text-primary hover:text-primary-hover"
             >
               Open ↗
-            </a>
+            </button>
           )}
           <button
             type="button"

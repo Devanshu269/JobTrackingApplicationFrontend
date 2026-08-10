@@ -9,7 +9,7 @@ import { Field, Input } from '../components/ui/Modal'
 import { Alert } from '../components/ui/Alert'
 import { FileDropZone } from '../components/ui/FileDropZone'
 import { DefaultResumeEditor } from '../components/DefaultResumeEditor'
-import { uploadFile, isUploadUnavailable, FILE_PURPOSES, IMAGE_ACCEPT, MAX_IMAGE_MB } from '../lib/filesApi'
+import { uploadFile, FILE_PURPOSES, IMAGE_ACCEPT, MAX_IMAGE_MB } from '../lib/filesApi'
 
 export default function SettingsPage() {
   const { user, logout, logoutAll, applyUser } = useAuth()
@@ -133,10 +133,6 @@ function ProfileSection({ user, initials, applyUser }) {
       setSuccess('Profile updated.')
     } catch (err) {
       setProgress(null)
-      if (isUploadUnavailable(err)) {
-        setError('Image uploads aren’t available yet. Paste a link instead for now.')
-        return
-      }
       const apiFieldErrors = getApiFieldErrors(err)
       if (apiFieldErrors) setFieldErrors(apiFieldErrors)
       setError(getApiErrorMessage(err, 'Could not update your profile.'))

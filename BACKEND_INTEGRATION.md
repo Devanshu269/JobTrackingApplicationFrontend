@@ -10,6 +10,88 @@ The contract between this frontend and `JobTrackingApplicationBackend`. The back
 >
 > See **[What the migration changed](#what-the-migration-changed)** for the field-by-field record and the decisions taken along the way.
 
+---
+
+## 🔧 Outstanding UI work (added 2026-08-10)
+
+Checked against the current source, not assumed.
+
+**Do the first item before anything else — without it every user gets logged out.**
+
+### 🔴 Refresh token rotation — BREAKING, one-line fix
+
+`POST /api/auth/refresh` now returns a **new** `refreshToken` on every call, and the one you sent is immediately revoked. The current code stores only the access token, so the second refresh of any session will 401 and sign the user out.
+
+[src/lib/api.js:32-40](src/lib/api.js#L32) — `requestNewAccessToken()` currently reads:
+
+```js
+const { data } = await axios.post(`${baseURL}/api/auth/refresh`, { refreshToken })
+// The backend does not rotate refresh tokens — the stored one stays valid.   ← no longer true
+setTokens({ token: data.token })
+```
+
+- [ ] Persist both tokens:
+      ```js
+      const { data } = await axios.post(`${baseURL}/api/auth/refresh`, { refreshToken })
+      // Rotating refresh: `refreshToken` is a NEW value and the one just sent is dead.
+      // Fall back to the existing one only defensively — it should always be present.
+      setTokens({ token: data.token, refreshToken: data.refreshToken ?? refreshToken })
+      ```
+      `setTokens` in [tokenStorage.js:17](src/lib/tokenStorage.js#L17) already accepts `refreshToken`, so nothing else changes.
+- [ ] Update that stale comment — it now states the opposite of reality.
+- [ ] **Don't retry a 401 from `/api/auth/refresh`.** If the backend detects a replayed token it revokes the whole session family deliberately; retrying can't recover it. Clear tokens and route to `/login`. The existing `NO_REFRESH_PATHS` allowlist already prevents recursion here — just make sure the failure path signs out rather than looping.
+- [ ] A 401 with message *"Session expired. Please log in again."* is the 30-day absolute cap, not a fault. Worth surfacing verbatim — it's a normal end-of-session.
+
+Your existing `refreshPromise` memoisation is now doing more work than before: it's what stops two concurrent 401s each rotating the token, where the loser would present a dead one. Keep it.
+
+### ✅ Activity feed — already integrated, nothing to do
+
+Verified present: `JOB_DELETED` is in `ACTIVITY_ACTIONS`, `mapApiActivity()` maps the API shape, `describeActivity()` already renders the `previousStatus → status` arrow, and both `DashboardPage` (`limit=8`) and `ActivityPage` call the real endpoint.
+
+One open judgement call, not a bug: `DashboardPage` wraps `listActivity()` in a `try/catch` that falls back to `buildActivityFeed(jobData)`. That fallback made sense while the endpoint was hypothetical. Now that it exists, a failure silently downgrades to a feed that *cannot* show deletions or real transitions, with nothing on screen saying so. Consider removing it and surfacing the error instead — the whole reason for building the endpoint was that the derived version couldn't tell the truth. `buildActivityFeed()` and `editAction()` become dead code if you do.
+
+### ⚠️ File downloads — this is the actual work
+
+Uploads already work: `uploadFile()` in [src/lib/filesApi.js](src/lib/filesApi.js) posts to `POST /api/files` and returns `url`, and `JobFormModal` / `DefaultResumeEditor` / `SettingsPage` all store it correctly. **Nothing needs to change on the upload side.**
+
+What changed is what that stored string *is* for documents. Avatars still return a directly usable `https://…` URL. **Resumes and cover letters now return an opaque `/api/files/{id}` reference that 401s if you put it in an `<a href>`.**
+
+- [ ] **Add a resolver** to `filesApi.js`:
+      ```js
+      /** Avatars and legacy pasted links pass through; document refs are exchanged for a signed URL. */
+      export async function resolveFileUrl(url) {
+        if (!url?.startsWith('/api/files/')) return url
+        const { data } = await api.get(url)
+        return data.downloadUrl   // signed, valid 5 minutes
+      }
+      ```
+- [ ] **Fix the broken call site:** [src/pages/JobDetailPage.jsx:198-199](src/pages/JobDetailPage.jsx#L198) renders `<DetailLink href={job.resumeUrl} />` and `href={job.coverLetterUrl}`. For any document uploaded through the new endpoint those hrefs are `/api/files/3` and will not open. Change `DetailLink` to an onClick that resolves then opens, rather than a plain anchor.
+- [ ] **Check `DefaultResumeEditor.jsx:112`** — it renders a link when `user.defaultResumeUrl` is set. Same problem once a default resume has been uploaded rather than pasted.
+- [ ] **Resolve on click, never on render.** The signed URL lives 5 minutes; resolving a list upfront produces links that are already dead when clicked. It also means one extra request per file opened, which is the intended cost of not making resumes publicly readable.
+- [ ] **Both shapes will coexist.** Values stored before upload existed are plain `https://` links people pasted. The resolver's prefix check handles both — don't assume every stored value is a ref.
+
+### 🧹 `isUploadUnavailable()` is now obsolete
+
+[filesApi.js:73](src/lib/filesApi.js#L73) exists to detect the endpoint 404ing, and `JobFormModal`, `DefaultResumeEditor` and `SettingsPage` all branch on it to show *"File uploads aren't available yet"*. The endpoint exists now, so that branch is unreachable in normal operation. Removing it means real upload failures surface their actual server message — the backend returns readable ones:
+
+| Failure | Status | `errors.file` |
+|---|---|---|
+| `.txt` renamed `.pdf` | 400 | *"Unrecognised file type — the file's contents don't match any accepted format"* |
+| PNG sent as a resume | 400 | *"A png file isn't valid for resume. Accepted: docx, doc, pdf"* |
+| over the size cap | **413** | *"File exceeds the maximum upload size"* |
+
+Note the **413** — if any error handling special-cases 400 for validation, oversized uploads will fall through to a generic message.
+
+### ✳️ `reminderSentAt` — optional
+
+`JobApplicationResponseDto` now includes `reminderSentAt` (nullable). The notification bell currently infers "overdue follow-up" from `followUpDate <= now && reminderEnabled`; it can now distinguish *"due"* from *"we already emailed you"*. Purely an enhancement — reminders fire server-side on a schedule, so there is nothing for the UI to trigger.
+
+### No action needed
+
+`ROUND_SCHEDULED` now also fires when a round is **edited**, not just created. Expect more of those events in the feed; no code change.
+
+---
+
 ## Project setup
 
 The frontend is already scaffolded (Vite + React + JavaScript). To run it:
@@ -64,7 +146,7 @@ Every password field that **sets** a password — signup, change-password's `new
   "userId": 11
 }
 ```
-On `POST /api/auth/refresh` only, `refreshToken` comes back **`null`** — the backend does not rotate refresh tokens, so keep using the one you already stored.
+On `POST /api/auth/refresh`, `refreshToken` comes back **populated with a NEW value that must be stored** — see [Refresh token rotation](#refresh-token-rotation-breaking-change). This changed on 2026-08-10; it used to be null.
 
 **`UserDto`** — returned by `GET /api/auth/me` and every `/api/users/me*` endpoint:
 ```json
@@ -90,7 +172,7 @@ On `POST /api/auth/refresh` only, `refreshToken` comes back **`null`** — the b
 | POST | `/api/auth/change-password` | **yes** | `{ currentPassword, newPassword }` | 204 | *(empty)* |
 | POST | `/api/auth/forgot-password` | no | `{ email }` | 200 | *(empty)* |
 | POST | `/api/auth/reset-password` | no | `{ token, newPassword }` | 204 | *(empty)* |
-| POST | `/api/auth/refresh` | no | `{ refreshToken }` | 200 | `AuthResponseDto` (`refreshToken` is null) |
+| POST | `/api/auth/refresh` | no | `{ refreshToken }` | 200 | `AuthResponseDto` (**new** `refreshToken` — store it) |
 | POST | `/api/auth/logout` | no | `{ refreshToken }` | 204 | *(empty)* |
 | POST | `/api/auth/logout-all` | **yes** | — | 204 | *(empty)* |
 
@@ -133,8 +215,8 @@ On `POST /api/auth/refresh` only, `refreshToken` comes back **`null`** — the b
 // request
 { "refreshToken": "f548fd3e-892d-4e37-9deb-64dc724139d4" }
 
-// 200 — note refreshToken is null; keep reusing the one you stored
-{ "token": "eyJhbGciOiJIUzUxMiJ9...", "refreshToken": null, "userId": 11 }
+// 200 — refreshToken is a NEW value. Store it; the one you sent is now dead.
+{ "token": "eyJhbGciOiJIUzUxMiJ9...", "refreshToken": "9de54fa3-6d38-…", "userId": 11 }
 
 // 401 — expired, revoked, or unknown → clear tokens and send the user to /login
 { "timestamp": "...", "status": 401, "message": "Invalid or expired refresh token", "errors": null }
@@ -454,6 +536,37 @@ The response shape deliberately matches what `buildActivityFeed()` already retur
 
 **`?limit=`** defaults to 20 and is clamped to 1–100 rather than rejected, so `?limit=9999` returns 100 instead of a 400. Unlike `/api/jobs` this table only grows, hence the hard ceiling.
 
+### Refresh token rotation (BREAKING CHANGE)
+
+**`POST /api/auth/refresh` now returns a new `refreshToken`, and the client must persist it.** Previously it returned `null` and the guidance was to keep reusing the original — that is no longer true, and a client that ignores the new value will 401 on its *next* refresh, because the token it kept has been revoked.
+
+The change in [src/lib/api.js](src/lib/api.js) is small but essential — the comment there currently says *"Since the backend does not rotate refresh tokens, only the access token is rewritten on success"*:
+
+```js
+// Before: only the access token was stored.
+// After: persist BOTH, or the next refresh fails.
+saveTokens({ token: data.token, refreshToken: data.refreshToken ?? currentRefreshToken })
+```
+
+Why it changed, and what it buys:
+
+- **An active session no longer dies at exactly 7 days.** Each rotation issues a fresh 7-day window, so continued use keeps a session alive — which was the original complaint.
+- **A stolen refresh token has a short useful life.** Whoever refreshes first invalidates it for the other party.
+- **Replay is detected.** If an already-consumed token is presented more than 30 seconds after it was rotated, the backend assumes the chain is compromised and revokes the *entire session family* — every device on that login is signed out. Expect a 401 and send the user to `/login`; do not retry.
+- **30 seconds of grace** covers the benign race (two tabs refreshing simultaneously): only that one call fails, the session survives. Your existing `refreshPromise` memoisation already prevents same-tab races, so this mainly covers multiple tabs and lost-response retries.
+- **A 30-day absolute cap** applies from the original login regardless of activity. It returns a distinct message, *"Session expired. Please log in again."*, which is worth surfacing verbatim rather than the generic one — it's a normal end-of-session, not an error.
+
+### Files
+
+| Method | URL | Auth | Request | Success | Response body |
+|---|---|---|---|---|---|
+| POST | `/api/files` | **yes** | `multipart/form-data`: `file` + `purpose` | 201 | `{ url, fileId }` |
+| GET | `/api/files/{fileId}` | **yes** | — | 200 | `{ downloadUrl, filename, contentType }` |
+
+`purpose` is `resume`, `cover-letter` or `avatar`.
+
+**Avatars return a directly usable public URL. Resumes and cover letters return an opaque `/api/files/{id}` reference** that must be exchanged via the `GET` for a 5-minute signed `downloadUrl`. That asymmetry is deliberate — full rationale, validation table and a `resolveFileUrl()` helper are in [File uploads](#file-uploads--built-but-the-private-file-contract-changed).
+
 ### Follow-up reminders
 
 Not an endpoint — a **server-side scheduled job**, but it changes what the existing `reminderEnabled`/`followUpDate` fields mean. They used to be stored and never read; now they actually send email.
@@ -496,8 +609,8 @@ Genuinely malformed JSON (not just a bad value) gives `message: "Malformed reque
 
 ### Not built yet
 
-- **File upload** — `POST /api/files` is **not built yet**, but the frontend is already written against it. See [File uploads](#file-uploads-frontend-ready-backend-pending) for the exact contract the UI expects. Until it exists, the drop zones fall back to "paste a link" and an upload attempt shows *"File uploads aren't available yet"* rather than a generic error.
-- **AI features** — the `job_ai_results` table and entity exist, but there are no endpoints and Gemini isn't integrated.
+- ~~File upload~~ — **now built**, backed by Cloudinary. See [Files](#files) below and [the migration note](#file-uploads--built-but-the-private-file-contract-changed) — documents are private and need a second call to resolve a download URL, which is a change from what the drop zones assume.
+- **AI features** — [Moved to Phase 2] The `job_ai_results` table and entity exist, but there are no endpoints and Gemini isn't integrated.
 - **Pagination** — `GET /api/jobs` returns every matching row. Fine now, will need `Pageable` once someone has hundreds of applications. ⚠️ **When it lands, the weekly-trend chart silently breaks**: it's derived client-side from the full jobs list, so it would start computing over one page instead of everything. Either add a real trend endpoint at that point, or have the client request an unpaged list specifically for the chart.
 - **`PATCH` semantics** — job and round updates are full-replace only. If you build a kanban board where dragging a card changes just `status`, you'll need to send the entire job object back, or add a real `PATCH` endpoint.
 
@@ -672,47 +785,83 @@ These live in `mockStats.js` and are rendered by `DashboardPage`/`AnalyticsPage`
 
 The mock's `UPCOMING_INTERVIEWS` shape differed from the API's: it had `date` plus a preformatted `time` string (`"10:00 AM PST"`) and a `companyIcon`. The API gives one `roundDate` and no icon, so the dashboard formats the time via `formatDateTime()` and uses `CompanyAvatar`. The backend stores no timezone, so times render in the browser's local zone.
 
-### File uploads: frontend ready, backend pending
+### File uploads — BUILT, but the private-file contract changed
 
-The UI ships with drag-and-drop zones for the job resume, the job cover letter, the default resume and the avatar. They are wired to one endpoint that **does not exist yet**. Building it to this contract requires no frontend change.
+`POST /api/files` now exists and is tested against a real Cloudinary account. **One thing differs from what the frontend was built against, and it needs a frontend change**: resumes and cover letters are no longer directly-fetchable URLs.
 
-**`POST /api/files`** — auth required, `multipart/form-data`
+#### Why it changed
+
+The original plan was "public bucket, unguessable keys". That is fine for avatars and was reconsidered for documents: a resume is a PII file (full name, phone, address, employment history), and with a public object the URL *is* the credential — it leaks via `Referer` headers, browser history, sync services and forwarded links. Combined with "files are never deleted", one leaked URL means permanent, unrevocable access.
+
+So **avatars stayed public** (they must work in a bare `<img src>`, which cannot send an Authorization header) and **documents became private**, reachable only through a short-lived signed URL.
+
+#### `POST /api/files` — auth required, `multipart/form-data`
 
 | Part | Type | Notes |
 |---|---|---|
 | `file` | file | the upload |
-| `purpose` | string | `resume` \| `cover-letter` \| `avatar` — picks the storage prefix |
+| `purpose` | string | `resume` \| `cover-letter` \| `avatar` (hyphens accepted) |
 
 ```jsonc
-// 201 (or 200)
-{ "url": "https://files.example.com/users/11/resumes/9f3c…/Frontend_Resume.pdf" }
+// 201 — avatar: a direct public URL, usable immediately in <img src>
+{ "url": "https://res.cloudinary.com/igmsrg7x/image/upload/v1786370673/users/24/avatars/9dd26c64….png",
+  "fileId": null }
+
+// 201 — resume / cover-letter: an OPAQUE REFERENCE, not a fetchable link
+{ "url": "/api/files/1", "fileId": 1 }
 ```
 
-The response only needs `url`. Everything downstream — `resumeUrl`, `coverLetterUrl`, `avatarUrl`, `defaultResumeUrl` — stays a plain string column, so **no schema change and no DTO change**. The upload endpoint is additive.
+Store `url` in `resumeUrl`/`coverLetterUrl`/`avatarUrl`/`defaultResumeUrl` exactly as before — those stay plain string columns, no schema change. The difference is only in what the string *means* for documents.
 
-Add `.requestMatchers("/api/files/**").authenticated()` to `SecurityConfig`.
+#### `GET /api/files/{fileId}` — the new exchange step
 
-#### Decisions already made, and why
+Needed only for documents. Call it with your normal axios instance (Bearer attached), then open the returned URL.
 
-- **Through the backend, not direct-to-R2.** The browser posts to Spring, Spring puts the object in R2. Presigned direct upload saves server bandwidth but turns your size and content-type limits into client-side suggestions and needs CORS on the bucket. Revisit only if bandwidth actually hurts.
-- **Public bucket, unguessable keys.** No signed URLs. Signing is easy; the cost is that URLs stop being stable, which means storing keys instead of URLs, re-signing on every read (a 50-job list = 100 signatures), and `<img src>` for avatars breaking when a signature expires — Bearer auth can't be attached to an image request. A UUID path segment is the proportionate choice here.
-- **Files are immutable and never deleted.** Every upload gets a fresh key; nothing is overwritten. This is what makes "use my default resume" safe: a job stores the URL that was current when it was created, so updating your default never rewrites what you actually sent to a company months ago. **Generate keys unconditionally — two uploads named `resume.pdf` must not collide.**
-- **Original filename in the key**, e.g. `users/{userId}/resumes/{uuid}/Frontend_Resume.pdf`. The URL becomes self-describing, so the UI can show a real filename with no extra column.
-- **No PII in the path** — user id only, never name or email. Put a custom domain in front of the bucket so you can move buckets later without invalidating stored URLs.
+```jsonc
+// 200
+{ "downloadUrl": "https://api.cloudinary.com/v1_1/igmsrg7x/raw/download?expires_at=…&signature=…",
+  "filename": "resume.pdf",
+  "contentType": "application/pdf" }
+```
 
-#### Validation is your job, not the client's
+- `downloadUrl` is valid for **5 minutes** and forces a download (`attachment=true`). Don't cache it — re-request when the user clicks.
+- Another user's `fileId` returns **404**, same as jobs and rounds.
+- Detecting which kind you hold: a document `url` starts with `/api/files/`; an avatar `url` starts with `https://`.
 
-The frontend checks type and size before staging a file (`5 MB` for documents, `2 MB` for images, `.pdf/.doc/.docx` and `png/jpeg/webp`). That is fast feedback, **not a control** — all of it is trivially bypassed. Re-check both server-side, and prefer sniffing actual content over trusting the declared `Content-Type`. Also set `spring.servlet.multipart.max-file-size` / `max-request-size`, or Spring rejects large uploads before your handler runs, with a different error shape than the rest of the API.
+**Suggested frontend helper:**
 
-#### Upload timing (already decided: deferred)
+```js
+// A document url is an opaque ref; an avatar url is already fetchable.
+export async function resolveFileUrl(url) {
+  if (!url?.startsWith('/api/files/')) return url
+  const { data } = await api.get(url)
+  return data.downloadUrl
+}
+```
 
-Files upload **on save**, not on drop. `FileDropZone` deliberately does no uploading — it surfaces a `File` and the parent form sends it during submit. Consequences worth knowing:
+#### Server-side validation (verified, not assumed)
 
-- Cancelling a form never leaves a stray object in storage.
-- Save is a two-step operation: upload, then write the record. If the record write then fails validation, the already-uploaded URL is cached in form state, so hitting Save again does **not** re-upload the same file.
-- Uploading a job resume with *"also set as my default"* ticked calls `PUT /api/users/me/default-resume` too. That call is best-effort — if it fails, the job still saves, because losing the user's typed-in job to a default-resume error would be the worse outcome.
+| Attempt | Result |
+|---|---|
+| a `.txt` renamed `.pdf` | `400` — *"Unrecognised file type"* |
+| a PNG sent as `purpose=resume` | `400` — *"A png file isn't valid for resume. Accepted: docx, doc, pdf"* |
+| `purpose=nonsense` | `400` naming the three valid values |
+| 7 MB file | `413` — *"File is too large"* |
+| no token | `401` |
+| someone else's `fileId` | `404` |
 
-Everything lives in [src/lib/filesApi.js](src/lib/filesApi.js) and [src/components/ui/FileDropZone.jsx](src/components/ui/FileDropZone.jsx). Switching to upload-on-drop later means moving the `uploadFile()` call out of the submit handler — the widget doesn't change.
+Type is decided by **magic bytes**, not the declared `Content-Type` — the frontend's own checks remain useful fast feedback but are not the control. Caps are 5 MB for documents, 2 MB for avatars.
+
+Confirmed by direct fetch: a private object returns `404` on its unsigned public URL and `401` on its unsigned authenticated URL, while the signed URL returns the file. Avatar public URLs return `200` to anyone, as intended.
+
+#### Decisions unchanged from the original plan
+
+- **Through the backend, not direct-to-storage.** Presigned direct upload would turn size and content-type limits into client-side suggestions.
+- **Files are immutable and never overwritten** — every upload gets a fresh UUID key, so a job keeps resolving the resume that was current when it was created, even after the default changes. Two uploads named `resume.pdf` cannot collide.
+- **No PII in the path** — user id only.
+- **Upload on save, not on drop** — cancelling a form leaves no orphan object.
+
+One deviation: the original filename is **not** in the storage key (it's stored in the database and returned as `filename` on the exchange). Keeping user-supplied text out of the object key avoids an encoding/traversal surface for no lost functionality.
 
 ### Recent Activity: derived now, logged later
 

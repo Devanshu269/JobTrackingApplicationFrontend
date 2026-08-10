@@ -5,7 +5,7 @@ import { JOB_STATUSES, KANBAN_COLUMNS, getStatusAccent } from '../data/jobConsta
 import { listJobs, getJobStats, listUpcomingRounds, listActivity } from '../lib/jobsApi'
 import { getApiErrorMessage } from '../lib/api'
 import { buildWeeklyTrend, formatDateTime, formatRelative } from '../lib/dates'
-import { buildActivityFeed, mapApiActivity, describeActivity, ACTIVITY_ACTIONS } from '../lib/activity'
+import { describeActivity, ACTIVITY_ACTIONS } from '../lib/activity'
 import { StatCard } from '../components/ui/StatCard'
 import { CompanyAvatar } from '../components/ui/CompanyAvatar'
 import { Alert } from '../components/ui/Alert'
@@ -26,24 +26,17 @@ export default function DashboardPage() {
 
     async function load() {
       try {
-        const [jobData, statsData, upcomingData] = await Promise.all([
+        const [jobData, statsData, upcomingData, activityData] = await Promise.all([
           listJobs(),
           getJobStats(),
           listUpcomingRounds(),
+          listActivity(8),
         ])
         if (cancelled) return
         setJobs(jobData)
         setStats(statsData)
         setUpcoming(upcomingData)
-
-        // Real audit log — falls back to derived feed if the endpoint isn't deployed yet.
-        try {
-          const activityData = await listActivity(8)
-          if (!cancelled) setActivity(mapApiActivity(activityData))
-        } catch {
-          if (!cancelled) setActivity(buildActivityFeed(jobData))
-        }
-
+        setActivity(activityData)
         setError('')
       } catch (err) {
         if (!cancelled) setError(getApiErrorMessage(err, 'Could not load your dashboard.'))

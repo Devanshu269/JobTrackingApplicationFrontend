@@ -10,7 +10,6 @@ import { toDateInputValue, mergeDateIntoDateTime } from '../lib/dates'
 import { FileDropZone } from './ui/FileDropZone'
 import {
   uploadFile,
-  isUploadUnavailable,
   FILE_PURPOSES,
   DOCUMENT_ACCEPT,
   MAX_DOCUMENT_MB,
@@ -149,10 +148,6 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, on
       onClose()
     } catch (err) {
       setProgress({ resume: null, cover: null })
-      if (isUploadUnavailable(err)) {
-        setError('File uploads aren’t available yet. Paste a link instead for now.')
-        return
-      }
       // A 400 from bean validation carries a field map; an invalid enum or malformed body
       // does not, so fall back to the top-level message.
       const apiFieldErrors = getApiFieldErrors(err)

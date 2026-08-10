@@ -5,7 +5,7 @@ import { Logo } from './ui/Logo'
 import { NotificationBell } from './NotificationBell'
 import { DefaultResumeEditor } from './DefaultResumeEditor'
 import { Modal } from './ui/Modal'
-import { filenameFromUrl } from '../lib/filesApi'
+import { filenameFromUrl, resolveFileUrl } from '../lib/filesApi'
 import { clearDefaultResume } from '../lib/userApi'
 import { getApiErrorMessage } from '../lib/api'
 
@@ -267,14 +267,20 @@ export function AppShell() {
                     )}
 
                     <div className="mt-3 flex items-center gap-2 border-t border-border/40 pt-3">
-                      <a
-                        href={user.defaultResumeUrl}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        type="button"
+                        onClick={async () => {
+                          try {
+                            const url = await resolveFileUrl(user.defaultResumeUrl)
+                            window.open(url, '_blank', 'noopener,noreferrer')
+                          } catch {
+                            window.open(user.defaultResumeUrl, '_blank', 'noopener,noreferrer')
+                          }
+                        }}
                         className="flex-1 rounded-md border border-border/50 bg-surface-alt/40 px-2.5 py-1.5 text-center text-[11px] font-medium text-text transition-colors hover:bg-surface-alt/70"
                       >
                         Open ↗
-                      </a>
+                      </button>
                       <button
                         type="button"
                         onClick={() => {

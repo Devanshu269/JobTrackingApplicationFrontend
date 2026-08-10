@@ -3,7 +3,6 @@ import { setDefaultResume, clearDefaultResume } from '../lib/userApi'
 import { getApiErrorMessage } from '../lib/api'
 import {
   uploadFile,
-  isUploadUnavailable,
   FILE_PURPOSES,
   DOCUMENT_ACCEPT,
   MAX_DOCUMENT_MB,
@@ -63,10 +62,6 @@ export function DefaultResumeEditor({ user, applyUser, onSaved }) {
       onSaved?.()
     } catch (err) {
       setProgress(null)
-      if (isUploadUnavailable(err)) {
-        setError('File uploads aren’t available yet. Paste a link instead for now.')
-        return
-      }
       setError(getApiErrorMessage(err, 'Could not save your default resume.'))
     } finally {
       setBusy(false)

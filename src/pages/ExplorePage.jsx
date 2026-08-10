@@ -69,6 +69,7 @@ const STEPS = [
 
 // Nothing here is built yet — the section says so rather than implying otherwise.
 const INTEGRATIONS = [
+  { name: 'Gemini AI', blurb: 'Tailor resumes, draft cover letters, and practice for interviews.' },
   { name: 'Gmail', blurb: 'Pull application confirmations straight from your inbox.' },
   { name: 'Google Calendar', blurb: 'Interviews land on your calendar automatically.' },
   { name: 'LinkedIn', blurb: 'Import a role from a job post in one click.' },
