@@ -1,3 +1,4 @@
+/* eslint-disable react-refresh/only-export-components */
 const variants = {
   // bg-brand is the iridescent gradient; brightness is how you 'hover' a gradient.
   primary:

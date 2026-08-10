@@ -5,7 +5,7 @@ import { Logo } from './ui/Logo'
 import { NotificationBell } from './NotificationBell'
 import { DefaultResumeEditor } from './DefaultResumeEditor'
 import { Modal } from './ui/Modal'
-import { filenameFromUrl, resolveFileUrl } from '../lib/filesApi'
+import { filenameFromUrl, openFile, useResolvedFilename } from '../lib/filesApi'
 import { clearDefaultResume } from '../lib/userApi'
 import { getApiErrorMessage } from '../lib/api'
 import { getNotifications } from '../lib/jobsApi'
@@ -74,6 +74,8 @@ export function AppShell() {
   const [resumeRemoving, setResumeRemoving] = useState(false)
   const [resumeRemoveError, setResumeRemoveError] = useState('')
   const [apiNotifications, setApiNotifications] = useState([])
+
+  const resolvedResumeName = useResolvedFilename(user?.defaultResumeUrl, 'Resume.pdf')
 
   useEffect(() => {
     if (!user) return
@@ -258,9 +260,9 @@ export function AppShell() {
                     setResumeModalOpen(true)
                   }
                 }}
+                aria-label={hasResume ? `Default resume: ${resolvedResumeName}` : 'Set default resume'}
+                title={hasResume ? resolvedResumeName : 'No default resume set'}
                 className="relative rounded-lg p-2 text-text-muted transition-colors duration-200 hover:bg-surface-alt hover:text-text"
-                aria-label={hasResume ? `Default resume: ${filenameFromUrl(user.defaultResumeUrl)}` : 'Set default resume'}
-                title={hasResume ? filenameFromUrl(user.defaultResumeUrl) : 'No default resume set'}
               >
                 <svg viewBox="0 0 18 18" className="h-[18px] w-[18px]" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M10.5 1.5H5a1.5 1.5 0 00-1.5 1.5v12A1.5 1.5 0 005 16.5h8a1.5 1.5 0 001.5-1.5V6z" />
@@ -283,9 +285,9 @@ export function AppShell() {
                     <div className="flex items-start gap-2.5">
                       <span className="mt-0.5 text-base" aria-hidden="true">📄</span>
                       <div className="min-w-0 flex-1">
-                        <p className="truncate text-sm font-medium text-text">
-                          {filenameFromUrl(user.defaultResumeUrl)}
-                        </p>
+                        <span className="truncate text-sm font-medium text-text">
+                          {resolvedResumeName}
+                        </span>
                         <p className="text-[11px] text-text-muted">Default resume</p>
                       </div>
                     </div>
@@ -298,12 +300,7 @@ export function AppShell() {
                       <button
                         type="button"
                         onClick={async () => {
-                          try {
-                            const url = await resolveFileUrl(user.defaultResumeUrl)
-                            window.open(url, '_blank', 'noopener,noreferrer')
-                          } catch {
-                            window.open(user.defaultResumeUrl, '_blank', 'noopener,noreferrer')
-                          }
+                          await openFile(user.defaultResumeUrl, 'Resume.pdf')
                         }}
                         className="flex-1 rounded-md border border-border/50 bg-surface-alt/40 px-2.5 py-1.5 text-center text-[11px] font-medium text-text transition-colors hover:bg-surface-alt/70"
                       >

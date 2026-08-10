@@ -5,7 +5,7 @@ import { getJob, listRounds, deleteJob, deleteRound } from '../lib/jobsApi'
 import { getApiErrorMessage } from '../lib/api'
 import { JOB_TYPES, JOB_PRIORITIES, ROUND_OUTCOMES, getStatusAccent } from '../data/jobConstants'
 import { formatDate, formatDateTime } from '../lib/dates'
-import { resolveFileUrl } from '../lib/filesApi'
+import { openFile } from '../lib/filesApi'
 import { StatusBadge } from '../components/ui/StatusBadge'
 import { CompanyAvatar } from '../components/ui/CompanyAvatar'
 import { JobFormModal } from '../components/JobFormModal'
@@ -380,15 +380,8 @@ function DetailLink({ label, href }) {
     e.preventDefault()
     if (resolving) return
     setResolving(true)
-    try {
-      const url = await resolveFileUrl(href)
-      window.open(url, '_blank', 'noopener,noreferrer')
-    } catch {
-      // If the resolve fails, try opening the raw URL as a last resort
-      window.open(href, '_blank', 'noopener,noreferrer')
-    } finally {
-      setResolving(false)
-    }
+    await openFile(href, label)
+    setResolving(false)
   }
 
   return (

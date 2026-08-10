@@ -32,11 +32,12 @@ const JOB_REQUEST_FIELDS = [
 /**
  * Builds a request body from a full job object.
  *
- * **This is what makes `PUT` safe.** The API's PUT is a full replace, not a patch: any field
- * left out of the body is written as null. So a partial edit — dragging a kanban card to change
- * only `status` — has to send everything else back untouched, or it silently wipes the notes,
- * salary and recruiter details. Always build this from the complete object you got from the
- * API, with your edits applied on top.
+ * **This is for `PUT` operations.** The API's PUT is a full replace, not a patch: any field
+ * left out of the body is written as null. Always build this from the complete object you got 
+ * from the API, with your edits applied on top.
+ * 
+ * Note: For partial edits (like dragging a kanban card to change only `status`), use the 
+ * `patchJob` API instead, which sends a partial payload and leaves omitted fields untouched.
  *
  * Empty strings are normalised to null so a cleared text input stores as absent rather than "".
  */

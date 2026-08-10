@@ -1,5 +1,5 @@
 import { useId, useRef, useState } from 'react'
-import { filenameFromUrl, resolveFileUrl, validateFile } from '../../lib/filesApi'
+import { openFile, validateFile, useResolvedFilename } from '../../lib/filesApi'
 
 /**
  * Drag-and-drop file picker with a "paste a link instead" fallback.
@@ -39,6 +39,8 @@ export function FileDropZone({
   const [localError, setLocalError] = useState('')
   const [linkMode, setLinkMode] = useState(false)
 
+  const resolvedValueName = useResolvedFilename(value, 'File')
+
   const shownError = error || localError
 
   function accept_(picked) {
@@ -69,7 +71,7 @@ export function FileDropZone({
   // ---- A file is staged, or something is already stored ----------------------------------
   if (file || value) {
     const isPending = Boolean(file)
-    const name = isPending ? file.name : filenameFromUrl(value)
+    const name = isPending ? file.name : resolvedValueName
     const sizeLabel = isPending ? `${(file.size / 1024 / 1024).toFixed(1)} MB` : null
 
     return (
@@ -100,12 +102,7 @@ export function FileDropZone({
             <button
               type="button"
               onClick={async () => {
-                try {
-                  const url = await resolveFileUrl(value)
-                  window.open(url, '_blank', 'noopener,noreferrer')
-                } catch {
-                  window.open(value, '_blank', 'noopener,noreferrer')
-                }
+                await openFile(value)
               }}
               className="shrink-0 text-[11px] text-primary hover:text-primary-hover"
             >

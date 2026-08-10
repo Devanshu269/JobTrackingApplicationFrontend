@@ -128,18 +128,20 @@ at any of them. Two custom breakpoints, both with a comment explaining a Tailwin
 
 ## Status
 
-Working: routing, guards, session bootstrap, refresh-on-401, login/signup/forgot/reset forms,
-OAuth2 handoff, the login page design, the explore page.
+Working (Fully Integrated with Spring Boot backend): 
+- Routing, guards, session bootstrap, token rotation (refresh-on-401).
+- Complete Auth flow: signup, login, forgot/reset password, OAuth2 handoff.
+- Dashboard with live statistical trends and paginated Activity feed.
+- Job tracking table with zero-indexed pagination.
+- Kanban drag-and-drop board (using lightweight `PATCH`).
+- Job Details page with Interview Round scheduling.
+- Real-time Notification Bell for upcoming job follow-ups.
+- File uploads directly to AWS S3 / Cloudinary with secure signed URL resolution for downloads.
+- User Settings page for managing notification preferences and default resumes.
 
-Not done / caveats:
-
-- **None of the auth flows have been tested against a running backend.** Everything is built
-  to the contract in BACKEND_INTEGRATION.md, not verified against it.
-- The password rules in [src/lib/validation.js:17](src/lib/validation.js#L17) are a **guess** —
-  the backend's actual policy is unknown. Reconcile before launch.
-- All marketing/feature copy is placeholder.
-- `/dashboard` is a stub. The job-tracking features themselves don't exist yet.
-- `design-preview/` is gitignored scratch from the palette comparison — safe to delete.
+Caveats:
+- The password rules in [src/lib/validation.js:17](src/lib/validation.js#L17) are a client-side mirroring of the backend. They must stay in sync with the Java `AuthService` constraints.
+- `design-preview/` is a gitignored scratch folder from the original UI palette comparisons and is safe to delete.
 
 ---
 

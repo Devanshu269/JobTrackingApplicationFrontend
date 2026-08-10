@@ -101,7 +101,7 @@ export default function ActivityPage() {
       {/* Timeline */}
       {!loading && events.length > 0 && (
         <div className="relative">
-          {grouped.map((group, gi) => (
+          {grouped.map((group) => (
             <div key={group.dateKey}>
               {/* Date header */}
               <div className="sticky top-0 z-10 mb-4 mt-1">
@@ -112,10 +112,9 @@ export default function ActivityPage() {
 
               {/* Events in this date group */}
               <div className="ml-1 border-l border-border/40 pl-6">
-                {group.events.map((event, i) => {
+                {group.events.map((event) => {
                   const meta = ACTIVITY_ACTIONS[event.action] ?? ACTIVITY_ACTIONS.JOB_UPDATED
                   const isDeleted = event.action === 'JOB_DELETED'
-                  const isLast = gi === grouped.length - 1 && i === group.events.length - 1
 
                   return (
                     <div

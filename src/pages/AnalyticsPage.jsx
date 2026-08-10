@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useState } from 'react'
 import { JOB_STATUSES } from '../data/jobConstants'
-import { listJobs, getJobStats, getJobTrend } from '../lib/jobsApi'
+import { getJobStats, getJobTrend } from '../lib/jobsApi'
 import { getApiErrorMessage } from '../lib/api'
 import { Alert } from '../components/ui/Alert'
 
@@ -9,7 +9,6 @@ const DONUT_KEYS = ['WISHLIST', 'APPLIED', 'INTERVIEW', 'OFFER', 'REJECTED']
 
 export default function AnalyticsPage() {
   const [stats, setStats] = useState(null)
-  const [jobs, setJobs] = useState([])
   const [weeklyTrend, setWeeklyTrend] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
@@ -19,14 +18,12 @@ export default function AnalyticsPage() {
 
     async function load() {
       try {
-        const [statsData, jobData, trendData] = await Promise.all([
+        const [statsData, trendData] = await Promise.all([
           getJobStats(), 
-          listJobs(),
           getJobTrend(7)
         ])
         if (cancelled) return
         setStats(statsData)
-        setJobs(jobData.content || [])
         
         const mappedTrend = (trendData || []).map((t) => ({
           key: t.date,

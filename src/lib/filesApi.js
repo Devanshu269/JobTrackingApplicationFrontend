@@ -1,3 +1,4 @@
+import { useState, useEffect } from 'react'
 import { api } from './api'
 
 /**
@@ -94,4 +95,72 @@ export function filenameFromUrl(url) {
   } catch {
     return url
   }
+}
+
+/** 
+ * Resolves a file URL and downloads it using fetch + object URL to force the 
+ * correct filename, bypassing cross-origin restrictions on the <a> download attribute.
+ */
+export async function openFile(url, fallbackName = 'download') {
+  if (!url) return
+  let finalUrl = url
+  let filename = fallbackName
+
+  if (url.startsWith('/api/files/')) {
+    try {
+      const { data } = await api.get(url)
+      finalUrl = data.downloadUrl
+      filename = data.filename || fallbackName
+    } catch {
+      window.open(url, '_blank', 'noopener,noreferrer')
+      return
+    }
+  } else {
+    filename = filenameFromUrl(url) || fallbackName
+  }
+
+  try {
+    const res = await fetch(finalUrl)
+    if (!res.ok) throw new Error('Fetch failed')
+    const blob = await res.blob()
+    const a = document.createElement('a')
+    a.href = URL.createObjectURL(blob)
+    a.download = filename
+    document.body.appendChild(a)
+    a.click()
+    a.remove()
+    URL.revokeObjectURL(a.href)
+  } catch {
+    window.open(finalUrl, '_blank', 'noopener,noreferrer')
+  }
+}
+
+/**
+ * React hook to fetch and cache the actual filename from the server for a given file URL.
+ * Falls back to the URL's trailing segment if not available.
+ */
+export function useResolvedFilename(url, fallbackName = 'File') {
+  const [filename, setFilename] = useState(() => filenameFromUrl(url) || fallbackName)
+
+  useEffect(() => {
+    let cancelled = false
+    if (!url?.startsWith('/api/files/')) {
+      setFilename(filenameFromUrl(url) || fallbackName)
+      return
+    }
+
+    api.get(url)
+      .then(({ data }) => {
+        if (!cancelled && data.filename) {
+          setFilename(data.filename)
+        }
+      })
+      .catch(() => {
+        // Leave the fallback intact if the fetch fails
+      })
+
+    return () => { cancelled = true }
+  }, [url, fallbackName])
+
+  return filename
 }
