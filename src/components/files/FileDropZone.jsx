@@ -1,5 +1,6 @@
 import { useId, useRef, useState } from 'react'
-import { openFile, validateFile, useResolvedFilename } from '../../lib/filesApi'
+import { openFile, validateFile } from '@/api/files'
+import { useResolvedFilename } from '@/hooks/useResolvedFilename'
 
 /**
  * Drag-and-drop file picker with a "paste a link instead" fallback.

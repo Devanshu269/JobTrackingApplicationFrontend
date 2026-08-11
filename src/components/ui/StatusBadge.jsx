@@ -1,4 +1,4 @@
-import { JOB_STATUSES } from '../../data/jobConstants'
+import { JOB_STATUSES } from '@/constants/jobs'
 
 // Keyed by the backend Status enum, same as JOB_STATUSES.
 const statusStyles = {

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { listActivity } from '../lib/jobsApi'
-import { mapApiActivity, describeActivity, ACTIVITY_ACTIONS } from '../lib/activity'
-import { JOB_STATUSES } from '../data/jobConstants'
-import { getApiErrorMessage } from '../lib/api'
-import { formatRelative, formatDateTime } from '../lib/dates'
-import { CompanyAvatar } from '../components/ui/CompanyAvatar'
-import { Alert } from '../components/ui/Alert'
+import { listActivity } from '@/api/jobs'
+import { mapApiActivity, describeActivity, ACTIVITY_ACTIONS } from '@/utils/activity'
+import { JOB_STATUSES } from '@/constants/jobs'
+import { getApiErrorMessage } from '@/api/client'
+import { formatRelative, formatDateTime } from '@/utils/dates'
+import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
+import { Alert } from '@/components/ui/Alert'
 
 const PAGE_SIZE = 25
 

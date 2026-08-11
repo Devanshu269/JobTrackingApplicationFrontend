@@ -1,5 +1,5 @@
 import axios from 'axios'
-import { getToken, getRefreshToken, setTokens, clearTokens } from './tokenStorage'
+import { getToken, getRefreshToken, setTokens, clearTokens } from '@/utils/tokenStorage'
 
 const baseURL = import.meta.env.VITE_API_BASE_URL
 

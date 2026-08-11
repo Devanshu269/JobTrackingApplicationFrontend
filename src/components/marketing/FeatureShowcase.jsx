@@ -4,7 +4,7 @@ import {
   RemindersIllustration,
   AnalyticsIllustration,
   DocumentsIllustration,
-} from '../ui/illustrations'
+} from '@/components/marketing/illustrations'
 
 const SLIDE_MS = 7000
 

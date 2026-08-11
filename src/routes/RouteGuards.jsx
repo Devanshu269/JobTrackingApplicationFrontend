@@ -1,6 +1,6 @@
 import { Navigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { FullPageSpinner } from './ui/Spinner'
+import { useAuth } from '@/context/AuthContext'
+import { FullPageSpinner } from '@/components/ui/Spinner'
 
 /** Signed-in users only. Everyone else goes to the login page. */
 export function ProtectedRoute({ children }) {

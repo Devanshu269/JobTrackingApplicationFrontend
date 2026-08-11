@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
-import { JOB_STATUSES } from '../data/jobConstants'
-import { getJobStats, getJobTrend } from '../lib/jobsApi'
-import { getApiErrorMessage } from '../lib/api'
-import { Alert } from '../components/ui/Alert'
+import { JOB_STATUSES } from '@/constants/jobs'
+import { getJobStats, getJobTrend } from '@/api/jobs'
+import { getApiErrorMessage } from '@/api/client'
+import { Alert } from '@/components/ui/Alert'
 
 const FUNNEL_KEYS = ['WISHLIST', 'APPLIED', 'INTERVIEW', 'OFFER']
 const DONUT_KEYS = ['WISHLIST', 'APPLIED', 'INTERVIEW', 'OFFER', 'REJECTED']

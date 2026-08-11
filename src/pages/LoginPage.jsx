@@ -1,15 +1,15 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { getApiErrorMessage } from '../lib/api'
-import { checkEmail, checkPassword, PASSWORD_RULES } from '../lib/validation'
-import { Navbar } from '../components/Navbar'
-import { FeatureShowcase } from '../components/marketing/FeatureShowcase'
-import { ApertureLens } from '../components/marketing/ApertureLens'
-import { TextField } from '../components/ui/TextField'
-import { Button, ButtonLink } from '../components/ui/Button'
-import { Alert } from '../components/ui/Alert'
-import { GoogleIcon, GitHubIcon } from '../components/ui/OAuthIcons'
+import { useAuth } from '@/context/AuthContext'
+import { getApiErrorMessage } from '@/api/client'
+import { checkEmail, checkPassword, PASSWORD_RULES } from '@/utils/validation'
+import { MarketingNav } from '@/layouts/MarketingNav'
+import { FeatureShowcase } from '@/components/marketing/FeatureShowcase'
+import { ApertureLens } from '@/components/marketing/ApertureLens'
+import { TextField } from '@/components/ui/TextField'
+import { Button, ButtonLink } from '@/components/ui/Button'
+import { Alert } from '@/components/ui/Alert'
+import { GoogleIcon, GitHubIcon } from '@/components/ui/OAuthIcons'
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
 
@@ -213,7 +213,7 @@ export default function LoginPage() {
       </div>
 
       <div className="relative z-10 flex min-h-svh flex-col">
-        <Navbar onGetStarted={() => switchMode('signup')} />
+        <MarketingNav onGetStarted={() => switchMode('signup')} />
 
         {/* Flex with an explicit gap rather than a 2-col grid: grid columns
             stretch on wide monitors and centre their contents, which is what

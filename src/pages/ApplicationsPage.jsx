@@ -1,14 +1,14 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { JOB_STATUSES, JOB_TYPES, JOB_PRIORITIES } from '../data/jobConstants'
-import { KanbanBoard } from '../components/KanbanBoard'
-import { JobTable } from '../components/JobTable'
-import { JobFormModal } from '../components/JobFormModal'
-import { listJobs, patchJob } from '../lib/jobsApi'
-import { getApiErrorMessage } from '../lib/api'
-import { useAuth } from '../context/AuthContext'
-import { Alert } from '../components/ui/Alert'
-import { Button } from '../components/ui/Button'
+import { JOB_STATUSES, JOB_TYPES, JOB_PRIORITIES } from '@/constants/jobs'
+import { KanbanBoard } from '@/components/jobs/KanbanBoard'
+import { JobTable } from '@/components/jobs/JobTable'
+import { JobFormModal } from '@/components/jobs/JobFormModal'
+import { listJobs, patchJob } from '@/api/jobs'
+import { getApiErrorMessage } from '@/api/client'
+import { useAuth } from '@/context/AuthContext'
+import { Alert } from '@/components/ui/Alert'
+import { Button } from '@/components/ui/Button'
 
 export default function ApplicationsPage() {
   const { user, applyUser } = useAuth()

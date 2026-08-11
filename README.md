@@ -47,35 +47,67 @@ break** — always check the port Vite prints.
 | `/dashboard` | protected | Placeholder for the actual app |
 | `*` | — | Falls back to the root redirect |
 
-Guards live in [src/components/RouteGuards.jsx](src/components/RouteGuards.jsx).
+Guards live in [src/routes/RouteGuards.jsx](src/routes/RouteGuards.jsx).
 The intended flow, in the user's words: **no session → `/login`; valid refresh token → main page.**
 
 ---
 
 ## Project structure
 
+Layered, not feature-sliced: a folder answers *what kind of thing is this*, so the
+one-file-per-route `pages/` tree stays the map of the app.
+
 ```
 src/
-├─ App.jsx                  routes
-├─ index.css                design tokens + keyframes (single source of truth)
-├─ context/AuthContext.jsx  session state, login/signup/logout, /me bootstrap
-├─ lib/
-│  ├─ api.js                axios instance, bearer header, refresh-on-401
-│  ├─ tokenStorage.js       localStorage read/write for both tokens
-│  └─ validation.js         email format + password rules
-├─ pages/                   one file per route
-└─ components/
-   ├─ ApertureLens.jsx      the reactive mascot on the login page
-   ├─ FeatureShowcase.jsx   3D rotating card carousel (left panel)
-   ├─ Navbar.jsx, RouteGuards.jsx, ScrollToHash.jsx, ErrorBoundary.jsx
-   └─ ui/                   Button, TextField, Logo, Alert, Spinner, Reveal, …
+├─ main.jsx                    mounts <App />
+├─ app/
+│  ├─ App.jsx                  composition root — boundary → router → auth
+│  └─ ErrorBoundary.jsx        unexpected-crash fallback, wraps everything
+├─ routes/
+│  ├─ AppRoutes.jsx            the route table; every page is lazy()
+│  ├─ RouteGuards.jsx          ProtectedRoute / PublicOnlyRoute / RootRedirect
+│  └─ ScrollToHash.jsx         anchor scrolling on the marketing page
+├─ layouts/
+│  ├─ AppShell.jsx             sidebar + topbar chrome for /JobJuggler/*
+│  ├─ AuthLayout.jsx           centred card for login / reset / OAuth pages
+│  └─ MarketingNav.jsx         public top nav (explore + login)
+├─ pages/                      one file per route, default-exported
+├─ components/
+│  ├─ ui/                      Button, TextField, Modal, Form, Alert, Spinner, …
+│  ├─ jobs/                    JobTable, KanbanBoard, JobFormModal, RoundFormModal
+│  ├─ files/                   FileDropZone, DefaultResumeEditor
+│  ├─ notifications/           NotificationBell
+│  └─ marketing/               ApertureLens, FeatureShowcase, illustrations
+├─ api/
+│  ├─ client.js                axios instance, bearer header, refresh-on-401
+│  ├─ jobs.js                  jobs + rounds + activity + stats
+│  ├─ files.js                 upload / resolve / download
+│  └─ user.js                  profile, password, preferences
+├─ context/AuthContext.jsx     session state, login/signup/logout, /me bootstrap
+├─ hooks/                      cross-cutting React hooks
+├─ constants/jobs.js           status / type / priority / round enums as UI config
+├─ utils/                      dates, validation, activity, tokenStorage
+└─ styles/index.css            design tokens + keyframes (single source of truth)
 ```
+
+Two rules keep this from drifting:
+
+**Imports are absolute via `@/`** — `@/api/client`, never `../../lib/api`. The alias is
+declared in [vite.config.js](vite.config.js) for the bundler and [jsconfig.json](jsconfig.json)
+for the editor; change one and you must change the other.
+
+**`api/` must not export React.** Anything with a hook in it belongs in `hooks/` — that's why
+[useResolvedFilename.js](src/hooks/useResolvedFilename.js) lives outside `api/files.js`.
+
+Every route is code-split in [src/routes/AppRoutes.jsx](src/routes/AppRoutes.jsx), so a visitor
+landing on `/explore` never downloads the dashboard. Adding a page means adding one `lazy()`
+line there, not an import at the top of `App.jsx`.
 
 ---
 
 ## Design system
 
-Everything visual is driven by tokens in [src/index.css](src/index.css). Change a token
+Everything visual is driven by tokens in [src/styles/index.css](src/styles/index.css). Change a token
 there, not a hex value in a component.
 
 **Palette — "iridescent":** near-black with a violet cast (`--color-bg: #08080f`), brand
@@ -89,7 +121,7 @@ gold, copper and bone all failed to read at that size against the dark backgroun
 
 ### The aperture lens
 
-[src/components/ApertureLens.jsx](src/components/ApertureLens.jsx) is the interactive entity
+[src/components/marketing/ApertureLens.jsx](src/components/marketing/ApertureLens.jsx) is the interactive entity
 above the Login/Sign up toggle. Six iris blades over a pupil that tracks the pointer.
 
 | State | Trigger | Look |
@@ -140,7 +172,7 @@ Working (Fully Integrated with Spring Boot backend):
 - User Settings page for managing notification preferences and default resumes.
 
 Caveats:
-- The password rules in [src/lib/validation.js:17](src/lib/validation.js#L17) are a client-side mirroring of the backend. They must stay in sync with the Java `AuthService` constraints.
+- The password rules in [src/utils/validation.js:17](src/utils/validation.js#L17) are a client-side mirroring of the backend. They must stay in sync with the Java `AuthService` constraints.
 - `design-preview/` is a gitignored scratch folder from the original UI palette comparisons and is safe to delete.
 
 ---
@@ -171,7 +203,7 @@ A paste-ready opener:
 | Features/How it works/Integrations → one `/explore` page | Anchor sections, not separate routes |
 | Email validation is a **format** check | Not a provider allowlist — that would reject work addresses |
 | OAuth2 buttons are `<a>` / `ButtonLink`, never `<button>` | They're full-page navigations; a `<button>` inside an `<a>` is invalid HTML and navigates unreliably |
-| `/api/auth/me` **may** trigger a refresh | See the `NO_REFRESH_PATHS` allowlist in `lib/api.js` — a blanket skip on `/api/auth/*` would break the "valid refresh token → main page" flow |
+| `/api/auth/me` **may** trigger a refresh | See the `NO_REFRESH_PATHS` allowlist in `api/client.js` — a blanket skip on `/api/auth/*` would break the "valid refresh token → main page" flow |
 
 ### Verifying UI changes
 

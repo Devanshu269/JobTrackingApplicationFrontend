@@ -1,8 +1,8 @@
 import { useState, useCallback } from 'react'
-import { KANBAN_COLUMNS, JOB_STATUSES, JOB_TYPES, getStatusAccent } from '../data/jobConstants'
-import { StatusBadge } from './ui/StatusBadge'
-import { CompanyAvatar } from './ui/CompanyAvatar'
-import { formatDateShort } from '../lib/dates'
+import { KANBAN_COLUMNS, JOB_STATUSES, JOB_TYPES, getStatusAccent } from '@/constants/jobs'
+import { StatusBadge } from '@/components/ui/StatusBadge'
+import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
+import { formatDateShort } from '@/utils/dates'
 
 /**
  * Drag-and-drop Kanban board using the HTML5 Drag and Drop API.

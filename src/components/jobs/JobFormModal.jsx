@@ -1,19 +1,20 @@
 import { useEffect, useState } from 'react'
-import { Modal, Field, Input, Select, Textarea } from './ui/Modal'
-import { Button } from './ui/Button'
-import { Alert } from './ui/Alert'
-import { JOB_STATUSES, JOB_TYPES, JOB_PRIORITIES } from '../data/jobConstants'
-import { createJob, updateJob } from '../lib/jobsApi'
-import { setDefaultResume } from '../lib/userApi'
-import { getApiErrorMessage, getApiFieldErrors } from '../lib/api'
-import { toDateInputValue, mergeDateIntoDateTime } from '../lib/dates'
-import { FileDropZone } from './ui/FileDropZone'
+import { Modal } from '@/components/ui/Modal'
+import { Field, Input, Select, Textarea } from '@/components/ui/Form'
+import { Button } from '@/components/ui/Button'
+import { Alert } from '@/components/ui/Alert'
+import { JOB_STATUSES, JOB_TYPES, JOB_PRIORITIES } from '@/constants/jobs'
+import { createJob, updateJob } from '@/api/jobs'
+import { setDefaultResume } from '@/api/user'
+import { getApiErrorMessage, getApiFieldErrors } from '@/api/client'
+import { toDateInputValue, mergeDateIntoDateTime } from '@/utils/dates'
+import { FileDropZone } from '@/components/files/FileDropZone'
 import {
   uploadFile,
   FILE_PURPOSES,
   DOCUMENT_ACCEPT,
   MAX_DOCUMENT_MB,
-} from '../lib/filesApi'
+} from '@/api/files'
 
 /**
  * Create/edit form for a job application.

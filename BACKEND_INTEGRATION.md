@@ -312,7 +312,7 @@ This is the single easiest way to lose data in this API, so here is the captured
   … }
 ```
 
-The frontend guards this with `toJobRequestBody()` in [src/lib/jobsApi.js](src/lib/jobsApi.js), which projects a complete job object onto exactly the request fields. Every write path — the kanban drag, the table's status dropdown, the edit form — goes through it. Don't hand-roll a `PUT` body.
+The frontend guards this with `toJobRequestBody()` in [src/api/jobs.js](src/api/jobs.js), which projects a complete job object onto exactly the request fields. Every write path — the kanban drag, the table's status dropdown, the edit form — goes through it. Don't hand-roll a `PUT` body.
 
 **`JobStatsResponseDto`:**
 ```json
@@ -432,7 +432,7 @@ Semantics worth knowing:
 |---|---|---|---|---|---|
 | GET | `/api/activity` | **yes** | — (`?page=` `?size=`) | 200 | **`PagedResponseDto<ActivityResponseDto>`** — `content` holds the array |
 
-**This replaces the derived feed in `src/lib/activity.js`.** It's a real append-only audit trail written from the service layer on every mutation, so it does the three things the derived version documented as impossible: a full edit history rather than one event per job, actual `previousStatus → status` transitions, and events for deleted jobs.
+**This replaces the derived feed in `src/utils/activity.js`.** It's a real append-only audit trail written from the service layer on every mutation, so it does the three things the derived version documented as impossible: a full edit history rather than one event per job, actual `previousStatus → status` transitions, and events for deleted jobs.
 
 The response shape deliberately matches what `buildActivityFeed()` already returns, plus `previousStatus`:
 
@@ -463,7 +463,7 @@ The response shape deliberately matches what `buildActivityFeed()` already retur
 
 **`POST /api/auth/refresh` now returns a new `refreshToken`, and the client must persist it.** Previously it returned `null` and the guidance was to keep reusing the original — that is no longer true, and a client that ignores the new value will 401 on its *next* refresh, because the token it kept has been revoked.
 
-The change in [src/lib/api.js](src/lib/api.js) is small but essential — the comment there currently says *"Since the backend does not rotate refresh tokens, only the access token is rewritten on success"*:
+The change in [src/api/client.js](src/api/client.js) is small but essential — the comment there currently says *"Since the backend does not rotate refresh tokens, only the access token is rewritten on success"*:
 
 ```js
 // Before: only the access token was stored.
@@ -555,7 +555,7 @@ Error responses (4xx) all share this shape:
 ```json
 { "timestamp": "...", "status": 401, "message": "...", "errors": null }
 ```
-`errors` is a field-name → message map, populated only on 400s (bean validation, bad enum values, bad path/query types — see above). It is null on 401/404/409. Read it with `getApiFieldErrors()` from [src/lib/api.js](src/lib/api.js), which returns null when absent so callers fall back to `message`.
+`errors` is a field-name → message map, populated only on 400s (bean validation, bad enum values, bad path/query types — see above). It is null on 401/404/409. Read it with `getApiFieldErrors()` from [src/api/client.js](src/api/client.js), which returns null when absent so callers fall back to `message`.
 
 **One exception to the shape:** a 401 raised by the security filter rather than by application code — an absent, malformed, or expired bearer token — comes back with an **empty body**, because `SecurityConfig` uses `response.sendError(...)`. There is no `message` to read, so `getApiErrorMessage()` returns its fallback string. Don't rely on `data.message` for auth-filter rejections.
 
@@ -604,12 +604,12 @@ Every page below is wired to the real API. There is no mock data anywhere in the
 - **Dashboard** ([DashboardPage.jsx](src/pages/DashboardPage.jsx)) — `GET /api/jobs/stats` for the tiles, `GET /api/jobs` for the mini pipeline, `GET /api/rounds/upcoming` for the interviews widget. The weekly trend is derived client-side from the jobs list.
 - **Applications** ([ApplicationsPage.jsx](src/pages/ApplicationsPage.jsx)) — `GET /api/jobs` with `status`/`priority`/`jobType`/`search` all wired to server-side query params. Search is debounced 300 ms, and a request counter discards a slow early response that would otherwise overwrite a faster later one. The list is server-ordered newest-first; the table adds no default sort of its own.
 - **Job detail** ([JobDetailPage.jsx](src/pages/JobDetailPage.jsx), route `/JobJuggler/applications/:jobId`) — `GET`/`PUT`/`DELETE /api/jobs/{jobId}` plus the full rounds CRUD. `roundNumber` isn't auto-assigned, so the UI defaults it to `max(existing) + 1` rather than `length + 1` — the two differ once a middle round has been deleted.
-- **Create / edit job** ([JobFormModal.jsx](src/components/JobFormModal.jsx)) — `POST`/`PUT /api/jobs`. New jobs prefill `resumeUrl` from `defaultResumeUrl` on `/me`.
+- **Create / edit job** ([JobFormModal.jsx](src/components/jobs/JobFormModal.jsx)) — `POST`/`PUT /api/jobs`. New jobs prefill `resumeUrl` from `defaultResumeUrl` on `/me`.
 - **Analytics** ([AnalyticsPage.jsx](src/pages/AnalyticsPage.jsx)) — `GET /api/jobs/stats` for the funnel and donut; the trend is derived like the dashboard's.
 - **Settings** ([SettingsPage.jsx](src/pages/SettingsPage.jsx)) — `PUT /api/users/me`, change-password (only rendered when `provider === 'LOCAL'`), default-resume set/clear, logout and `logout-all`.
-- **App shell** ([AppShell.jsx](src/components/AppShell.jsx)) — the avatar menu opens the default-resume editor in a modal, so setting one never requires a detour to Settings mid-flow. It renders [DefaultResumeEditor.jsx](src/components/DefaultResumeEditor.jsx), the same component the Settings card uses, so the upload semantics can't drift between the two.
+- **App shell** ([AppShell.jsx](src/layouts/AppShell.jsx)) — the avatar menu opens the default-resume editor in a modal, so setting one never requires a detour to Settings mid-flow. It renders [DefaultResumeEditor.jsx](src/components/files/DefaultResumeEditor.jsx), the same component the Settings card uses, so the upload semantics can't drift between the two.
 
-  The **notification bell** is now driven by real state via [NotificationBell.jsx](src/components/NotificationBell.jsx) — it previously had a hardcoded red dot that was always lit and therefore meaningless. Today the only entry is "no default resume set", derived from the `user` already in context with no extra request; no entries means no dot. Follow-up reminders and upcoming interviews are the natural next sources, so the component takes a notifications array rather than fetching anything itself.
+  The **notification bell** is now driven by real state via [NotificationBell.jsx](src/components/notifications/NotificationBell.jsx) — it previously had a hardcoded red dot that was always lit and therefore meaningless. Today the only entry is "no default resume set", derived from the `user` already in context with no extra request; no entries means no dot. Follow-up reminders and upcoming interviews are the natural next sources, so the component takes a notifications array rather than fetching anything itself.
 
 **Kanban drag-and-drop:** handled. `KanbanBoard` passes the *whole job object* to `onStatusChange`, not just an id, so the caller can send a complete full-replace `PUT`. The move is applied optimistically and rolled back if the request fails.
 
@@ -627,26 +627,26 @@ when a new session needs to find the call site for an endpoint.
 | Endpoint / concern | Called from |
 |---|---|
 | `signup`, `login`, `logout`, `logout-all`, `/me` | [src/context/AuthContext.jsx](src/context/AuthContext.jsx) |
-| `refresh` (on 401) | [src/lib/api.js](src/lib/api.js) — response interceptor |
+| `refresh` (on 401) | [src/api/client.js](src/api/client.js) — response interceptor |
 | `oauth/exchange` | `exchangeOAuthCode()` in [src/context/AuthContext.jsx](src/context/AuthContext.jsx), driven by [src/pages/OAuthRedirectPage.jsx](src/pages/OAuthRedirectPage.jsx) |
 | `forgot-password` | [src/pages/ForgotPasswordPage.jsx](src/pages/ForgotPasswordPage.jsx) |
 | `reset-password` | [src/pages/ResetPasswordPage.jsx](src/pages/ResetPasswordPage.jsx) |
 | OAuth2 authorization URLs | [src/pages/LoginPage.jsx](src/pages/LoginPage.jsx), rendered as `ButtonLink` (`<a>`) |
-| Bearer header | [src/lib/api.js](src/lib/api.js) — request interceptor |
-| Token persistence | [src/lib/tokenStorage.js](src/lib/tokenStorage.js) — `localStorage` |
-| Error message extraction | `getApiErrorMessage()` / `getApiFieldErrors()` in [src/lib/api.js](src/lib/api.js) |
-| Unexpected-crash fallback | [src/components/ErrorBoundary.jsx](src/components/ErrorBoundary.jsx), wraps the whole router |
-| All `/api/jobs*` and `/api/jobs/{id}/rounds*` calls | [src/lib/jobsApi.js](src/lib/jobsApi.js) |
-| `GET /api/rounds/upcoming` | `listUpcomingRounds()` in [src/lib/jobsApi.js](src/lib/jobsApi.js) |
-| Full-replace `PUT` body construction | `toJobRequestBody()` in [src/lib/jobsApi.js](src/lib/jobsApi.js) |
-| `PUT /api/users/me`, default-resume, change-password | [src/lib/userApi.js](src/lib/userApi.js) |
-| `LocalDateTime` ↔ `<input>` conversions, weekly trend | [src/lib/dates.js](src/lib/dates.js) |
-| Status / type / priority / round enums as UI config | [src/data/jobConstants.js](src/data/jobConstants.js) |
+| Bearer header | [src/api/client.js](src/api/client.js) — request interceptor |
+| Token persistence | [src/utils/tokenStorage.js](src/utils/tokenStorage.js) — `localStorage` |
+| Error message extraction | `getApiErrorMessage()` / `getApiFieldErrors()` in [src/api/client.js](src/api/client.js) |
+| Unexpected-crash fallback | [src/app/ErrorBoundary.jsx](src/app/ErrorBoundary.jsx), wraps the whole router |
+| All `/api/jobs*` and `/api/jobs/{id}/rounds*` calls | [src/api/jobs.js](src/api/jobs.js) |
+| `GET /api/rounds/upcoming` | `listUpcomingRounds()` in [src/api/jobs.js](src/api/jobs.js) |
+| Full-replace `PUT` body construction | `toJobRequestBody()` in [src/api/jobs.js](src/api/jobs.js) |
+| `PUT /api/users/me`, default-resume, change-password | [src/api/user.js](src/api/user.js) |
+| `LocalDateTime` ↔ `<input>` conversions, weekly trend | [src/utils/dates.js](src/utils/dates.js) |
+| Status / type / priority / round enums as UI config | [src/constants/jobs.js](src/constants/jobs.js) |
 
 ### Three implementation details worth knowing before you change any of this
 
 **1. `/api/auth/me` is deliberately allowed to trigger a refresh.**
-`lib/api.js` uses a `NO_REFRESH_PATHS` *allowlist* rather than skipping all of `/api/auth/*`.
+`api/client.js` uses a `NO_REFRESH_PATHS` *allowlist* rather than skipping all of `/api/auth/*`.
 The unauthenticated endpoints and the token-management calls themselves are excluded (refreshing
 on their own 401 would recurse), but `/me` is not — and that is exactly what lets a returning
 user with a live refresh token land on the dashboard instead of the login page. A blanket skip
@@ -663,7 +663,7 @@ already on a public page. The route guards handle the redirect instead.
 
 ## What the migration changed
 
-**Done.** `mockJobs.js`, `mockStats.js` and `mockUser.js` are deleted. The UI-config constants that shared `mockJobs.js` were moved to [src/data/jobConstants.js](src/data/jobConstants.js) and rekeyed to the backend's exact enum strings, so API objects index into them directly with no translation layer.
+**Done.** `mockJobs.js`, `mockStats.js` and `mockUser.js` are deleted. The UI-config constants that shared `mockJobs.js` were moved to [src/constants/jobs.js](src/constants/jobs.js) and rekeyed to the backend's exact enum strings, so API objects index into them directly with no translation layer.
 
 Kept for reference, because it explains why the field names in this repo look the way they do:
 
@@ -695,7 +695,7 @@ Kept for reference, because it explains why the field names in this repo look th
 
 **2. `outcome` on a job — dropped.** It was redundant with `status: 'OFFER' | 'REJECTED'`, and `Outcome` genuinely lives on interview rounds in the backend. Row and card accents now derive from `status` alone via `getStatusAccent()`; real per-round outcomes render on the job detail page.
 
-**3. Dates — centralised in [src/lib/dates.js](src/lib/dates.js).** No component does date arithmetic inline. The send path is pure string manipulation and never constructs a `Date`, because `new Date('2026-08-01')` parses as **UTC** midnight while `new Date('2026-08-01T00:00:00')` parses as **local** midnight — round-tripping through a `Date` shifts the day for anyone west of UTC.
+**3. Dates — centralised in [src/utils/dates.js](src/utils/dates.js).** No component does date arithmetic inline. The send path is pure string manipulation and never constructs a `Date`, because `new Date('2026-08-01')` parses as **UTC** midnight while `new Date('2026-08-01T00:00:00')` parses as **local** midnight — round-tripping through a `Date` shifts the day for anyone west of UTC.
 
   One addition beyond the original plan: `mergeDateIntoDateTime()`. A `<input type="date">` can only express a day, so naively saving a job applied at `T10:00:00` would rewrite it to `T00:00:00` the first time anyone edited an unrelated field. The helper keeps the original clock time when the calendar day hasn't changed.
 
@@ -717,7 +717,7 @@ These live in `mockStats.js` and are rendered by `DashboardPage`/`AnalyticsPage`
 | Mock export | Status | Path |
 |---|---|---|
 | `UPCOMING_INTERVIEWS` | ✅ **live** | `GET /api/rounds/upcoming`, added for this widget. One request across all jobs, company/role flattened in, so no N+1. |
-| `WEEKLY_TREND` | ✅ **live, derived client-side** | `buildWeeklyTrend()` in [src/lib/dates.js](src/lib/dates.js) buckets the jobs list by `appliedDate` (falling back to `createdAt`) over the last 7 days. Comparison is on the `YYYY-MM-DD` prefix, so it never touches timezone conversion. No backend work needed. |
+| `WEEKLY_TREND` | ✅ **live, derived client-side** | `buildWeeklyTrend()` in [src/utils/dates.js](src/utils/dates.js) buckets the jobs list by `appliedDate` (falling back to `createdAt`) over the last 7 days. Comparison is on the `YYYY-MM-DD` prefix, so it never touches timezone conversion. No backend work needed. |
 | `RECENT_ACTIVITY` | ✅ **endpoint now exists** | `GET /api/activity` — a real append-only audit log, no longer derived. Swapping `buildActivityFeed(jobs)` for a fetch removes all three documented limitations at once (edit history, actual transitions, deleted-job events). Add a `JOB_DELETED` entry to `ACTIVITY_ACTIONS` when wiring it — see [Activity log](#activity-log). |
 
 The mock's `UPCOMING_INTERVIEWS` shape differed from the API's: it had `date` plus a preformatted `time` string (`"10:00 AM PST"`) and a `companyIcon`. The API gives one `roundDate` and no icon, so the dashboard formats the time via `formatDateTime()` and uses `CompanyAvatar`. The backend stores no timezone, so times render in the browser's local zone.
@@ -802,7 +802,7 @@ One deviation: the original filename is **not** in the storage key (it's stored 
 
 ### Recent Activity: derived now, logged later
 
-The widget is live, but it is **not** reading an audit log — there isn't one. `buildActivityFeed()` in [src/lib/activity.js](src/lib/activity.js) synthesises events from timestamps `GET /api/jobs` already returns. Every event is real; the derivation is what's limited:
+The widget is live, but it is **not** reading an audit log — there isn't one. `buildActivityFeed()` in [src/utils/activity.js](src/utils/activity.js) synthesises events from timestamps `GET /api/jobs` already returns. Every event is real; the derivation is what's limited:
 
 | | Derived (today) | A real activity log |
 |---|---|---|
@@ -866,7 +866,7 @@ Suggested endpoint — `GET /api/activity?limit=20`, auth required, returns newe
 
 Remember to add `.requestMatchers("/api/activity/**").authenticated()` to `SecurityConfig`.
 
-**Frontend swap when it lands:** `activity.js` already emits `{ id, action, jobId, companyName, jobRole, status, timestamp }` with `ACTIVITY_ACTIONS` keyed by the same action names. Add `listActivity()` to `jobsApi.js`, replace the `buildActivityFeed(jobs)` memo in `DashboardPage` with the fetched array, and map `createdAt → timestamp`. The widget itself doesn't change.
+**Frontend swap when it lands:** `utils/activity.js` already emits `{ id, action, jobId, companyName, jobRole, status, timestamp }` with `ACTIVITY_ACTIONS` keyed by the same action names. Add `listActivity()` to `api/jobs.js`, replace the `buildActivityFeed(jobs)` memo in `DashboardPage` with the fetched array, and map `createdAt → timestamp`. The widget itself doesn't change.
 
 **Also removed:** the three notification toggles on `SettingsPage`. They were local `useState` that reset on reload, with no endpoint behind them — the same "don't ship fiction" reasoning as `RECENT_ACTIVITY`. Worth rebuilding when `reminderEnabled` grows a real notification backend.
 
@@ -881,7 +881,7 @@ All of them. `change-password`, `logout-all`, `PUT /api/users/me` and the defaul
 Two asymmetries that bit during wiring and are easy to hit again:
 
 - **`PUT /api/users/me` takes `firstName`/`lastName`, but `UserDto` returns `userFirstName`/`userLastName`.** Sending the `user`-prefixed names is not an error — the fields are simply ignored and the update silently does nothing.
-- **Those fields are `@Size(min = 3, max = 20)` with no `@NotBlank`.** So `null` means "leave unchanged" but `""` is a 400. `updateProfile()` in [src/lib/userApi.js](src/lib/userApi.js) drops blank values rather than forwarding them.
+- **Those fields are `@Size(min = 3, max = 20)` with no `@NotBlank`.** So `null` means "leave unchanged" but `""` is a 400. `updateProfile()` in [src/api/user.js](src/api/user.js) drops blank values rather than forwarding them.
 
 ### Password rules, reconciled
 
@@ -889,7 +889,7 @@ Two asymmetries that bit during wiring and are easy to hit again:
 
 The backend was raised from `4–12` to **`@Size(min = 8, max = 64)`** across `SignupRequestDto`, `ChangePasswordRequestDto` and `ResetPasswordRequestDto`. Raising the ceiling was the more valuable half: 12 characters blocked passphrases and password managers for no security benefit, since the column stores a fixed-length bcrypt hash regardless of input length.
 
-The client's length rule in [src/lib/validation.js](src/lib/validation.js) gained the matching **upper** bound it never had. That missing ceiling was the actual bug in the original mismatch — an unbounded client rule doesn't merely differ from the server, it green-ticks a password the server will reject, putting the error on a field the form already called valid.
+The client's length rule in [src/utils/validation.js](src/utils/validation.js) gained the matching **upper** bound it never had. That missing ceiling was the actual bug in the original mismatch — an unbounded client rule doesn't merely differ from the server, it green-ticks a password the server will reject, putting the error on a field the form already called valid.
 
 | | Client (`validation.js`) | Backend | |
 |---|---|---|---|

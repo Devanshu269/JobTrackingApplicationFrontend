@@ -1,7 +1,7 @@
 import { useState, useMemo } from 'react'
-import { JOB_STATUSES, JOB_TYPES, getStatusAccent } from '../data/jobConstants'
-import { CompanyAvatar } from './ui/CompanyAvatar'
-import { formatDate } from '../lib/dates'
+import { JOB_STATUSES, JOB_TYPES, getStatusAccent } from '@/constants/jobs'
+import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
+import { formatDate } from '@/utils/dates'
 
 /**
  * Table view for job applications.

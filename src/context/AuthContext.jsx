@@ -1,7 +1,7 @@
 /* eslint-disable react-refresh/only-export-components */
 import { createContext, useCallback, useContext, useEffect, useState } from 'react'
-import { api } from '../lib/api'
-import { getRefreshToken, getToken, setTokens, clearTokens } from '../lib/tokenStorage'
+import { api } from '@/api/client'
+import { getRefreshToken, getToken, setTokens, clearTokens } from '@/utils/tokenStorage'
 
 const AuthContext = createContext(null)
 

@@ -38,7 +38,12 @@
       "Bash(cd ../JobTrackingApplicationBackend && sed -n '1,60p' src/main/java/com/jobtracker/controller/ActivityController.java && echo \"=== REPO QUERY ===\" && grep -n -B12 -A8 \"findDueReminders\" src/main/java/com/jobtracker/repository/JobApplicationRepository.java && echo \"=== SCHEDULING ===\" && cat src/main/java/com/jobtracker/config/SchedulingConfig.java && echo \"=== YAML reminders ===\" && grep -n -A6 \"reminders\" src/main/resources/application.yaml && echo \"=== ActivityLogRepository ===\" && grep -n \"findByUserId\" src/main/java/com/jobtracker/repository/ActivityLogRepository.java)",
       "Bash(python3 -c 'import sys,json;print\\(sorted\\({r[\"companyName\"] for r in json.load\\(sys.stdin\\)}\\)\\)')",
       "Bash(cd ../JobTrackingApplicationBackend && grep -n -A22 \"sendFollowUpReminder\" src/main/java/com/jobtracker/service/EmailService.java | head -40; echo \"=== @Async anywhere in EmailService? ===\"; grep -n \"Async\\\\|@Value\\\\|class EmailService\" src/main/java/com/jobtracker/service/EmailService.java; echo \"=== mail config ===\"; grep -n -A10 \"^  mail:\\\\|mail:\" src/main/resources/application.yaml | head -25)",
-      "Bash(grep -v '^$')"
+      "Bash(grep -v '^$')",
+      "Bash(perl -0pi -e 's{\\\\nconst controlClasses =\\\\n.*\\\\Z}{\\\\n}s' src/components/ui/Modal.jsx)",
+      "Bash(perl -0pi -e 's{^import \\\\{ useState, useEffect \\\\} from .react.\\\\n}{}m; s{\\\\n/\\\\*\\\\*\\\\n \\\\* React hook to fetch and cache.*\\\\Z}{\\\\n}s' src/api/files.js)",
+      "Bash(git add *)",
+      "Bash(git status *)",
+      "Bash(git reset *)"
     ],
     "additionalDirectories": [
       "/Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/dto",

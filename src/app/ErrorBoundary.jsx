@@ -1,5 +1,5 @@
 import { Component } from 'react'
-import { Button } from './ui/Button'
+import { Button } from '@/components/ui/Button'
 
 export class ErrorBoundary extends Component {
   state = { hasError: false }

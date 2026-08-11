@@ -8,7 +8,7 @@
  * `ACTIVITY_ACTIONS` and `describeActivity()` are used by the UI to format these events.
  */
 
-import { JOB_STATUSES } from '../data/jobConstants'
+import { JOB_STATUSES } from '@/constants/jobs'
 
 export const ACTIVITY_ACTIONS = {
   JOB_CREATED: { emoji: '📤', color: '#6366f1', verb: 'Added' },

@@ -1,15 +1,15 @@
 import { useEffect, useState } from 'react'
-import { setDefaultResume, clearDefaultResume } from '../lib/userApi'
-import { getApiErrorMessage } from '../lib/api'
+import { setDefaultResume, clearDefaultResume } from '@/api/user'
+import { getApiErrorMessage } from '@/api/client'
 import {
   uploadFile,
   FILE_PURPOSES,
   DOCUMENT_ACCEPT,
   MAX_DOCUMENT_MB,
-} from '../lib/filesApi'
-import { FileDropZone } from './ui/FileDropZone'
-import { Button } from './ui/Button'
-import { Alert } from './ui/Alert'
+} from '@/api/files'
+import { FileDropZone } from '@/components/files/FileDropZone'
+import { Button } from '@/components/ui/Button'
+import { Alert } from '@/components/ui/Alert'
 
 /**
  * The default-resume form body, with no card or modal chrome of its own.

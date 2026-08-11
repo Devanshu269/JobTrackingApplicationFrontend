@@ -1,14 +1,14 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { JOB_STATUSES, KANBAN_COLUMNS, getStatusAccent } from '../data/jobConstants'
-import { listJobs, getJobStats, listUpcomingRounds, listActivity, getJobTrend } from '../lib/jobsApi'
-import { getApiErrorMessage } from '../lib/api'
-import { formatDateTime, formatRelative } from '../lib/dates'
-import { describeActivity, ACTIVITY_ACTIONS } from '../lib/activity'
-import { StatCard } from '../components/ui/StatCard'
-import { CompanyAvatar } from '../components/ui/CompanyAvatar'
-import { Alert } from '../components/ui/Alert'
+import { useAuth } from '@/context/AuthContext'
+import { JOB_STATUSES, KANBAN_COLUMNS, getStatusAccent } from '@/constants/jobs'
+import { listJobs, getJobStats, listUpcomingRounds, listActivity, getJobTrend } from '@/api/jobs'
+import { getApiErrorMessage } from '@/api/client'
+import { formatDateTime, formatRelative } from '@/utils/dates'
+import { describeActivity, ACTIVITY_ACTIONS } from '@/utils/activity'
+import { StatCard } from '@/components/ui/StatCard'
+import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
+import { Alert } from '@/components/ui/Alert'
 
 export default function DashboardPage() {
   const { user } = useAuth()

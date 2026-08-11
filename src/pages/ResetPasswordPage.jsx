@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link, useNavigate, useSearchParams } from 'react-router-dom'
-import { api } from '../lib/api'
-import { AuthLayout } from '../components/ui/AuthLayout'
-import { TextField } from '../components/ui/TextField'
-import { Button } from '../components/ui/Button'
-import { Alert } from '../components/ui/Alert'
+import { api } from '@/api/client'
+import { AuthLayout } from '@/layouts/AuthLayout'
+import { TextField } from '@/components/ui/TextField'
+import { Button } from '@/components/ui/Button'
+import { Alert } from '@/components/ui/Alert'
 
 export default function ResetPasswordPage() {
   const [searchParams] = useSearchParams()

@@ -1,5 +1,4 @@
-import { useState, useEffect } from 'react'
-import { api } from './api'
+import { api } from '@/api/client'
 
 /**
  * File uploads.
@@ -135,32 +134,3 @@ export async function openFile(url, fallbackName = 'download') {
   }
 }
 
-/**
- * React hook to fetch and cache the actual filename from the server for a given file URL.
- * Falls back to the URL's trailing segment if not available.
- */
-export function useResolvedFilename(url, fallbackName = 'File') {
-  const [filename, setFilename] = useState(() => filenameFromUrl(url) || fallbackName)
-
-  useEffect(() => {
-    let cancelled = false
-    if (!url?.startsWith('/api/files/')) {
-      setFilename(filenameFromUrl(url) || fallbackName)
-      return
-    }
-
-    api.get(url)
-      .then(({ data }) => {
-        if (!cancelled && data.filename) {
-          setFilename(data.filename)
-        }
-      })
-      .catch(() => {
-        // Leave the fallback intact if the fetch fails
-      })
-
-    return () => { cancelled = true }
-  }, [url, fallbackName])
-
-  return filename
-}

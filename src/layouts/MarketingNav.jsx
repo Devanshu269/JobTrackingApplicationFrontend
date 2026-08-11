@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from 'react-router-dom'
-import { Logo } from './ui/Logo'
+import { Logo } from '@/components/ui/Logo'
 
 const NAV_LINKS = [
   { label: 'Features', to: '/explore#features' },
@@ -7,7 +7,7 @@ const NAV_LINKS = [
   { label: 'Integrations', to: '/explore#integrations' },
 ]
 
-export function Navbar({ onGetStarted }) {
+export function MarketingNav({ onGetStarted }) {
   const navigate = useNavigate()
   const { pathname } = useLocation()
   const onLoginPage = pathname === '/login'

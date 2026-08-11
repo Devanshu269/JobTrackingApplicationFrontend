@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom'
-import { Navbar } from '../components/Navbar'
-import { Reveal } from '../components/ui/Reveal'
-import { Logo } from '../components/ui/Logo'
+import { MarketingNav } from '@/layouts/MarketingNav'
+import { Reveal } from '@/components/ui/Reveal'
+import { Logo } from '@/components/ui/Logo'
 import {
   KanbanIllustration,
   RemindersIllustration,
   AnalyticsIllustration,
   DocumentsIllustration,
-} from '../components/ui/illustrations'
+} from '@/components/marketing/illustrations'
 
 // Placeholder marketing copy — swap for the real thing before launch.
 const FEATURES = [
@@ -93,7 +93,7 @@ function SectionHeading({ eyebrow, title, children }) {
 export default function ExplorePage() {
   return (
     <div className="min-h-svh bg-bg">
-      <Navbar />
+      <MarketingNav />
 
       {/* Hero */}
       <section className="relative overflow-hidden px-5 py-24 sm:px-8 sm:py-32">

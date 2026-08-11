@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { useAuth } from '../context/AuthContext'
-import { updateProfile, changePassword, updatePreferences } from '../lib/userApi'
-import { getApiErrorMessage, getApiFieldErrors } from '../lib/api'
-import { checkPassword, PASSWORD_RULES } from '../lib/validation'
-import { Button } from '../components/ui/Button'
-import { Field, Input } from '../components/ui/Modal'
-import { Alert } from '../components/ui/Alert'
-import { DefaultResumeEditor } from '../components/DefaultResumeEditor'
+import { useAuth } from '@/context/AuthContext'
+import { updateProfile, changePassword, updatePreferences } from '@/api/user'
+import { getApiErrorMessage, getApiFieldErrors } from '@/api/client'
+import { checkPassword, PASSWORD_RULES } from '@/utils/validation'
+import { Button } from '@/components/ui/Button'
+import { Field, Input } from '@/components/ui/Form'
+import { Alert } from '@/components/ui/Alert'
+import { DefaultResumeEditor } from '@/components/files/DefaultResumeEditor'
 
 const PRESET_AVATARS = [
   'https://api.dicebear.com/9.x/bottts/svg?seed=Felix&backgroundColor=b6e3f4',

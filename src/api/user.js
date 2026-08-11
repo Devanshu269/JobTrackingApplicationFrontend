@@ -1,4 +1,4 @@
-import { api } from './api'
+import { api } from '@/api/client'
 
 /**
  * Profile and account endpoints. All return the updated `UserDto`, so callers can refresh

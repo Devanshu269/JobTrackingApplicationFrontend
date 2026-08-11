@@ -1,10 +1,10 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { api, getApiErrorMessage } from '../lib/api'
-import { AuthLayout } from '../components/ui/AuthLayout'
-import { TextField } from '../components/ui/TextField'
-import { Button } from '../components/ui/Button'
-import { Alert } from '../components/ui/Alert'
+import { api, getApiErrorMessage } from '@/api/client'
+import { AuthLayout } from '@/layouts/AuthLayout'
+import { TextField } from '@/components/ui/TextField'
+import { Button } from '@/components/ui/Button'
+import { Alert } from '@/components/ui/Alert'
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('')
