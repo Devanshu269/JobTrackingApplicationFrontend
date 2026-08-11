@@ -7,9 +7,18 @@ import { checkPassword, PASSWORD_RULES } from '../lib/validation'
 import { Button } from '../components/ui/Button'
 import { Field, Input } from '../components/ui/Modal'
 import { Alert } from '../components/ui/Alert'
-import { FileDropZone } from '../components/ui/FileDropZone'
 import { DefaultResumeEditor } from '../components/DefaultResumeEditor'
-import { uploadFile, FILE_PURPOSES, IMAGE_ACCEPT, MAX_IMAGE_MB } from '../lib/filesApi'
+
+const PRESET_AVATARS = [
+  'https://api.dicebear.com/9.x/bottts/svg?seed=Felix&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/9.x/bottts/svg?seed=Aneka&backgroundColor=c0aede',
+  'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Jocelyn&backgroundColor=ffd5dc',
+  'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Destiny&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Jack&backgroundColor=ffdfbf',
+  'https://api.dicebear.com/9.x/adventurer/svg?seed=Avery&backgroundColor=d1d4f9',
+  'https://api.dicebear.com/9.x/lorelei/svg?seed=Riley&backgroundColor=b6e3f4',
+  'https://api.dicebear.com/9.x/lorelei/svg?seed=Sara&backgroundColor=c0aede',
+]
 
 export default function SettingsPage() {
   const { user, logout, logoutAll, applyUser } = useAuth()
@@ -82,8 +91,6 @@ function ProfileSection({ user, initials, applyUser }) {
   const [firstName, setFirstName] = useState(user.userFirstName ?? '')
   const [lastName, setLastName] = useState(user.userLastName ?? '')
   const [avatarUrl, setAvatarUrl] = useState(user.avatarUrl ?? '')
-  const [avatarFile, setAvatarFile] = useState(null)
-  const [progress, setProgress] = useState(null)
   const [fieldErrors, setFieldErrors] = useState({})
   const [error, setError] = useState('')
   const [success, setSuccess] = useState('')
@@ -93,14 +100,12 @@ function ProfileSection({ user, initials, applyUser }) {
     setFirstName(user.userFirstName ?? '')
     setLastName(user.userLastName ?? '')
     setAvatarUrl(user.avatarUrl ?? '')
-    setAvatarFile(null)
   }, [user])
 
   const dirty =
     firstName !== (user.userFirstName ?? '') ||
     lastName !== (user.userLastName ?? '') ||
-    avatarUrl !== (user.avatarUrl ?? '') ||
-    Boolean(avatarFile)
+    avatarUrl !== (user.avatarUrl ?? '')
 
   async function handleSubmit(e) {
     e.preventDefault()
@@ -121,20 +126,10 @@ function ProfileSection({ user, initials, applyUser }) {
 
     setSaving(true)
     try {
-      // Deferred upload: the picked image is only sent now, on save.
-      let nextAvatarUrl = avatarUrl
-      if (avatarFile) {
-        nextAvatarUrl = await uploadFile(avatarFile, FILE_PURPOSES.AVATAR, setProgress)
-        setProgress(null)
-        setAvatarUrl(nextAvatarUrl)
-        setAvatarFile(null)
-      }
-
-      const updated = await updateProfile({ firstName, lastName, avatarUrl: nextAvatarUrl })
+      const updated = await updateProfile({ firstName, lastName, avatarUrl })
       applyUser(updated)
       setSuccess('Profile updated.')
     } catch (err) {
-      setProgress(null)
       const apiFieldErrors = getApiFieldErrors(err)
       if (apiFieldErrors) setFieldErrors(apiFieldErrors)
       setError(getApiErrorMessage(err, 'Could not update your profile.'))
@@ -196,17 +191,31 @@ function ProfileSection({ user, initials, applyUser }) {
         </div>
 
         <Field label="Avatar" error={fieldErrors.avatarUrl}>
-          <FileDropZone
-            file={avatarFile}
-            value={avatarUrl}
-            onFile={setAvatarFile}
-            onValue={setAvatarUrl}
-            accept={IMAGE_ACCEPT}
-            maxMb={MAX_IMAGE_MB}
-            disabled={saving}
-            progress={progress}
-            emptyHint="PNG, JPG or WebP"
-          />
+          <div className="mt-2 grid grid-cols-4 gap-4 sm:grid-cols-8">
+            {PRESET_AVATARS.map((url) => (
+              <button
+                key={url}
+                type="button"
+                onClick={() => setAvatarUrl(url)}
+                className={`relative aspect-square overflow-hidden rounded-full border-2 transition-all hover:scale-110 focus:outline-none ${
+                  avatarUrl === url
+                    ? 'border-brand scale-110 shadow-lg shadow-brand/30'
+                    : 'border-transparent opacity-70 hover:opacity-100'
+                }`}
+              >
+                <img src={url} alt="Preset avatar" className="h-full w-full object-cover" />
+              </button>
+            ))}
+          </div>
+          <div className="mt-2 text-right">
+            <button
+              type="button"
+              onClick={() => setAvatarUrl('')}
+              className="text-[11px] font-medium text-text-muted hover:text-text hover:underline"
+            >
+              Clear avatar
+            </button>
+          </div>
         </Field>
 
         <Button

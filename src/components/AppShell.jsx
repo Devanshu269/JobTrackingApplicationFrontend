@@ -335,11 +335,15 @@ export function AppShell() {
               <button
                 type="button"
                 onClick={() => setUserMenuOpen((v) => !v)}
-                className="bg-brand flex h-9 w-9 items-center justify-center rounded-full text-xs font-bold text-on-primary ring-2 ring-transparent transition-all duration-200 hover:ring-primary/40"
+                className="bg-brand flex h-9 w-9 overflow-hidden items-center justify-center rounded-full text-xs font-bold text-on-primary ring-2 ring-transparent transition-all duration-200 hover:ring-primary/40"
                 aria-label="User menu"
                 aria-expanded={userMenuOpen}
               >
-                {initials}
+                {user?.avatarUrl ? (
+                  <img src={user.avatarUrl} alt="" className="h-full w-full object-cover" />
+                ) : (
+                  initials
+                )}
               </button>
 
               {/* Dropdown menu */}
