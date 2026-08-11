@@ -7,7 +7,7 @@ import {
   RemindersIllustration,
   AnalyticsIllustration,
   DocumentsIllustration,
-} from '../components/illustrations'
+} from '../components/ui/illustrations'
 
 // Placeholder marketing copy — swap for the real thing before launch.
 const FEATURES = [

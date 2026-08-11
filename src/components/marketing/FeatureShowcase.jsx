@@ -4,7 +4,7 @@ import {
   RemindersIllustration,
   AnalyticsIllustration,
   DocumentsIllustration,
-} from './illustrations'
+} from '../ui/illustrations'
 
 const SLIDE_MS = 7000
 

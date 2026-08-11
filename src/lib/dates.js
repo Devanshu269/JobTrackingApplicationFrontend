@@ -111,32 +111,3 @@ export function toLocalDateKey(date) {
   const d = String(date.getDate()).padStart(2, '0')
   return `${y}-${m}-${d}`
 }
-
-/**
- * Buckets jobs into the last 7 days (oldest → today) by `appliedDate`, falling back to
- * `createdAt` for jobs never formally applied to.
- *
- * Derived client-side because the backend has no trend endpoint. Comparison is on the
- * `YYYY-MM-DD` prefix, so it never touches timezone conversion.
- */
-export function buildWeeklyTrend(jobs, today = new Date()) {
-  const days = []
-  for (let i = 6; i >= 0; i--) {
-    const d = new Date(today)
-    d.setDate(d.getDate() - i)
-    days.push({
-      key: toLocalDateKey(d),
-      day: d.toLocaleDateString('en-US', { weekday: 'short' }),
-      count: 0,
-    })
-  }
-
-  const index = new Map(days.map((d) => [d.key, d]))
-  for (const job of jobs) {
-    const stamp = job.appliedDate || job.createdAt
-    if (!stamp) continue
-    const bucket = index.get(stamp.slice(0, 10))
-    if (bucket) bucket.count += 1
-  }
-  return days
-}

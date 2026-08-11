@@ -1,16 +1,11 @@
 /**
  * The Recent Activity feed.
  *
- * Two data sources, selected at the call site:
+ * Driven by **`GET /api/activity`** — the real append-only audit log. Has full edit history, actual
+ * `previousStatus → status` transitions, round events, and survives deletion. The response
+ * shape uses `id`/`timestamp`/`status`/`previousStatus` and is ready to render directly.
  *
- *   1. **`GET /api/activity`** — the real append-only audit log. Has full edit history, actual
- *      `previousStatus → status` transitions, round events, and survives deletion. The response
- *      shape uses `id`/`timestamp`/`status`/`previousStatus` and is ready to render directly.
- *
- *   2. **`buildActivityFeed(jobs)`** — the derived fallback, still here for graceful degradation
- *      if the backend endpoint isn't deployed. See the caveats below.
- *
- * `ACTIVITY_ACTIONS` and `describeActivity()` are shared by both sources.
+ * `ACTIVITY_ACTIONS` and `describeActivity()` are used by the UI to format these events.
  */
 
 import { JOB_STATUSES } from '../data/jobConstants'
@@ -43,66 +38,7 @@ export function mapApiActivity(apiEvents) {
   }))
 }
 
-/**
- * An edit is classified by the job's *current* status, which is the only thing we can state
- * truthfully. OFFER and REJECTED are terminal enough that "offer received" / "rejected by" is
- * a fair reading of the latest edit; anything else stays the neutral "Updated".
- */
-function editAction(status) {
-  if (status === 'OFFER') return 'OFFER_RECEIVED'
-  if (status === 'REJECTED') return 'REJECTED'
-  return 'JOB_UPDATED'
-}
-
-/**
- * Derived fallback — used when `GET /api/activity` isn't available.
- *
- * Limitations (documented for context, not because they can be fixed here):
- *   - **One edit per job, not a history.** `updatedAt` is `@LastModifiedDate`.
- *   - **It can't say what changed.** Reports the current status, not a transition.
- *   - **No round or deletion events.**
- *
- * @param {Array} jobs — from `GET /api/jobs`
- * @returns {Array} newest first
- */
-export function buildActivityFeed(jobs, { limit = 8 } = {}) {
-  const events = []
-
-  for (const job of jobs) {
-    if (job.createdAt) {
-      events.push({
-        id: `job-${job.jobId}-created`,
-        action: 'JOB_CREATED',
-        jobId: job.jobId,
-        companyName: job.companyName,
-        jobRole: job.jobRole,
-        status: job.status,
-        previousStatus: null,
-        timestamp: job.createdAt,
-      })
-    }
-
-    // Equal timestamps mean the row has never been edited since insert — no second event.
-    if (job.updatedAt && job.updatedAt !== job.createdAt) {
-      events.push({
-        id: `job-${job.jobId}-updated`,
-        action: editAction(job.status),
-        jobId: job.jobId,
-        companyName: job.companyName,
-        jobRole: job.jobRole,
-        status: job.status,
-        previousStatus: null,
-        timestamp: job.updatedAt,
-      })
-    }
-  }
-
-  // String comparison is safe and timezone-free: LocalDateTime is fixed-width ISO-8601.
-  events.sort((a, b) => (a.timestamp < b.timestamp ? 1 : a.timestamp > b.timestamp ? -1 : 0))
-  return events.slice(0, limit)
-}
-
-/** Human-readable line for an event, shared by the derived feed and the real one. */
+/** Human-readable line for an event. */
 export function describeActivity(event) {
   const action = ACTIVITY_ACTIONS[event.action] ?? ACTIVITY_ACTIONS.JOB_UPDATED
 
