@@ -16,6 +16,9 @@ import {
   MAX_DOCUMENT_MB,
 } from '@/api/files'
 
+/** Ties the pinned footer's submit button back to the form in the modal body. */
+const FORM_ID = 'job-form'
+
 /**
  * Create/edit form for a job application.
  *
@@ -166,8 +169,19 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, on
       size="lg"
       title={isEdit ? 'Edit application' : 'Add application'}
       subtitle={isEdit ? form.companyName : 'Track a new role you’re interested in.'}
+      footer={
+        <div className="flex justify-end gap-3">
+          <Button type="button" variant="ghost" onClick={onClose} className="w-auto px-5">
+            Cancel
+          </Button>
+          {/* Lives outside the <form> (pinned footer), so it needs an explicit form owner. */}
+          <Button type="submit" form={FORM_ID} loading={saving} className="w-auto px-6">
+            {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add application'}
+          </Button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-5">
+      <form id={FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-5">
         <Alert variant="error">{error}</Alert>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -246,7 +260,7 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, on
             />
           </Field>
 
-          <Field label="Salary range" htmlFor="salaryRange" hint="Free text — e.g. 20-25 LPA">
+          <Field label="Salary range" htmlFor="salaryRange">
             <Input
               id="salaryRange"
               value={form.salaryRange ?? ''}
@@ -304,6 +318,7 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, on
                 id="recruiterName"
                 value={form.recruiterName ?? ''}
                 onChange={(e) => set('recruiterName', e.target.value)}
+                placeholder="Priya Sharma"
               />
             </Field>
             <Field label="Email" htmlFor="recruiterEmail" error={fieldErrors.recruiterEmail}>
@@ -313,13 +328,16 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, on
                 value={form.recruiterEmail ?? ''}
                 onChange={(e) => set('recruiterEmail', e.target.value)}
                 error={fieldErrors.recruiterEmail}
+                placeholder="priya@acme.com"
               />
             </Field>
             <Field label="Phone" htmlFor="recruiterPhone">
               <Input
                 id="recruiterPhone"
+                type="tel"
                 value={form.recruiterPhone ?? ''}
                 onChange={(e) => set('recruiterPhone', e.target.value)}
+                placeholder="+91 98765 43210"
               />
             </Field>
           </div>
@@ -425,14 +443,6 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, on
           />
         </Field>
 
-        <div className="flex justify-end gap-3 border-t border-border/40 pt-4">
-          <Button type="button" variant="ghost" onClick={onClose} className="w-auto px-5">
-            Cancel
-          </Button>
-          <Button type="submit" loading={saving} className="w-auto px-6">
-            {saving ? 'Saving…' : isEdit ? 'Save changes' : 'Add application'}
-          </Button>
-        </div>
       </form>
     </Modal>
   )

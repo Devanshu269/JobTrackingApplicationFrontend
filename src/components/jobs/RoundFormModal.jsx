@@ -8,6 +8,9 @@ import { createRound, updateRound } from '@/api/jobs'
 import { getApiErrorMessage, getApiFieldErrors } from '@/api/client'
 import { toDateTimeInputValue, toApiDateTimeFromLocal } from '@/utils/dates'
 
+/** Ties the pinned footer's submit button back to the form in the modal body. */
+const FORM_ID = 'round-form'
+
 /**
  * Create/edit form for an interview round.
  *
@@ -78,8 +81,18 @@ export function RoundFormModal({ open, jobId, round, nextRoundNumber, onClose, o
       open={open}
       onClose={onClose}
       title={isEdit ? `Edit round ${round?.roundNumber}` : 'Add interview round'}
+      footer={
+        <div className="flex justify-end gap-3">
+          <Button type="button" variant="ghost" onClick={onClose} className="w-auto px-5">
+            Cancel
+          </Button>
+          <Button type="submit" form={FORM_ID} loading={saving} className="w-auto px-6">
+            {saving ? 'Saving…' : isEdit ? 'Save round' : 'Add round'}
+          </Button>
+        </div>
+      }
     >
-      <form onSubmit={handleSubmit} className="flex flex-col gap-4">
+      <form id={FORM_ID} onSubmit={handleSubmit} className="flex flex-col gap-4">
         <Alert variant="error">{error}</Alert>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -164,14 +177,6 @@ export function RoundFormModal({ open, jobId, round, nextRoundNumber, onClose, o
           />
         </Field>
 
-        <div className="flex justify-end gap-3 border-t border-border/40 pt-4">
-          <Button type="button" variant="ghost" onClick={onClose} className="w-auto px-5">
-            Cancel
-          </Button>
-          <Button type="submit" loading={saving} className="w-auto px-6">
-            {saving ? 'Saving…' : isEdit ? 'Save round' : 'Add round'}
-          </Button>
-        </div>
       </form>
     </Modal>
   )
