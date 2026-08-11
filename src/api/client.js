@@ -1,7 +1,6 @@
 import axios from 'axios'
+import { API_BASE_URL as baseURL } from '@/config/env'
 import { getToken, getRefreshToken, setTokens, clearTokens } from '@/utils/tokenStorage'
-
-const baseURL = import.meta.env.VITE_API_BASE_URL
 
 export const api = axios.create({ baseURL })
 

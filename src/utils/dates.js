@@ -11,14 +11,6 @@
  * send path never constructs a `Date` at all.
  */
 
-/** `"2026-08-01"` (from `<input type="date">`) → `"2026-08-01T00:00:00"`. Empty → null. */
-export function toApiDateTime(dateValue) {
-  if (!dateValue) return null
-  // Already a full date-time (e.g. an untouched value read back from the API) — pass through.
-  if (dateValue.includes('T')) return dateValue
-  return `${dateValue}T00:00:00`
-}
-
 /** `"2026-08-01T10:00:00"` → `"2026-08-01"` for `<input type="date">`. */
 export function toDateInputValue(apiDateTime) {
   if (!apiDateTime) return ''
@@ -104,10 +96,3 @@ export function formatRelative(apiDateTime, fallback = '') {
   return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
 }
 
-/** Local `YYYY-MM-DD` for a `Date` — never via `toISOString()`, which converts to UTC first. */
-export function toLocalDateKey(date) {
-  const y = date.getFullYear()
-  const m = String(date.getMonth() + 1).padStart(2, '0')
-  const d = String(date.getDate()).padStart(2, '0')
-  return `${y}-${m}-${d}`
-}

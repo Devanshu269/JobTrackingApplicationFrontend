@@ -10,8 +10,7 @@ import { TextField } from '@/components/ui/TextField'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Alert'
 import { GoogleIcon, GitHubIcon } from '@/components/ui/OAuthIcons'
-
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL
+import { API_BASE_URL } from '@/config/env'
 
 const MODES = [
   { id: 'login', label: 'Login' },

@@ -65,25 +65,6 @@ export async function uploadFile(file, purpose, onProgress) {
   return data.url
 }
 
-/**
- * Opens a file URL, resolving `/api/files/{id}` references to a signed download URL first.
- *
- * Avatars and legacy pasted `https://` links pass through untouched.
- * Document refs (`/api/files/3`) are exchanged via `GET` for a `downloadUrl` that's valid
- * for 5 minutes. Both shapes coexist because older stored values are plain URLs people pasted
- * before upload existed.
- *
- * **Resolve on click, never on render.** The signed URL expires in 5 minutes, so resolving a
- * list upfront produces links that are dead before anyone clicks them.
- *
- * @param {string} url — the stored value from a job or user record
- * @returns {Promise<string>} a URL the browser can open directly
- */
-export async function resolveFileUrl(url) {
-  if (!url?.startsWith('/api/files/')) return url
-  const { data } = await api.get(url)
-  return data.downloadUrl
-}
 
 /** Best-effort display name for a stored URL, for showing an existing attachment. */
 export function filenameFromUrl(url) {

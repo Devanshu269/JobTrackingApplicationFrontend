@@ -10,10 +10,6 @@ export function getRefreshToken() {
   return localStorage.getItem(REFRESH_TOKEN_KEY)
 }
 
-export function getUserId() {
-  return localStorage.getItem(USER_ID_KEY)
-}
-
 export function setTokens({ token, refreshToken, userId }) {
   if (token) localStorage.setItem(TOKEN_KEY, token)
   if (refreshToken) localStorage.setItem(REFRESH_TOKEN_KEY, refreshToken)

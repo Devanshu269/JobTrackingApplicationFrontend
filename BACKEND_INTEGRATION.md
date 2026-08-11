@@ -548,7 +548,7 @@ Genuinely malformed JSON (not just a bad value) gives `message: "Malformed reque
 
 - ~~File upload~~ — **now built**, backed by Cloudinary. See [Files](#files) below and [the migration note](#file-uploads--built-but-the-private-file-contract-changed) — documents are private and need a second call to resolve a download URL, which is a change from what the drop zones assume.
 - **AI features** — [Moved to Phase 2] The `job_ai_results` table and entity exist, but there are no endpoints and Gemini isn't integrated.
-- **Pagination** — `GET /api/jobs` returns every matching row. Fine now, will need `Pageable` once someone has hundreds of applications. ⚠️ **When it lands, the weekly-trend chart silently breaks**: it's derived client-side from the full jobs list, so it would start computing over one page instead of everything. Either add a real trend endpoint at that point, or have the client request an unpaged list specifically for the chart.
+- **Pagination** — `GET /api/jobs` returns every matching row. Fine now, will need `Pageable` once someone has hundreds of applications. The weekly-trend chart used to be the blocker here — derived client-side from the full list, it would have started computing over a single page — but `GET /api/jobs/trend` now owns that calculation server-side, so pagination is free to land.
 - **`PATCH` semantics** — job and round updates are full-replace only. If you build a kanban board where dragging a card changes just `status`, you'll need to send the entire job object back, or add a real `PATCH` endpoint.
 
 Error responses (4xx) all share this shape:
@@ -601,11 +601,11 @@ Every page below is wired to the real API. There is no mock data anywhere in the
 
 ### App pages
 
-- **Dashboard** ([DashboardPage.jsx](src/pages/DashboardPage.jsx)) — `GET /api/jobs/stats` for the tiles, `GET /api/jobs` for the mini pipeline, `GET /api/rounds/upcoming` for the interviews widget. The weekly trend is derived client-side from the jobs list.
+- **Dashboard** ([DashboardPage.jsx](src/pages/DashboardPage.jsx)) — `GET /api/jobs/stats` for the tiles, `GET /api/jobs` for the mini pipeline, `GET /api/rounds/upcoming` for the interviews widget, `GET /api/jobs/trend?days=7` for the weekly trend.
 - **Applications** ([ApplicationsPage.jsx](src/pages/ApplicationsPage.jsx)) — `GET /api/jobs` with `status`/`priority`/`jobType`/`search` all wired to server-side query params. Search is debounced 300 ms, and a request counter discards a slow early response that would otherwise overwrite a faster later one. The list is server-ordered newest-first; the table adds no default sort of its own.
 - **Job detail** ([JobDetailPage.jsx](src/pages/JobDetailPage.jsx), route `/JobJuggler/applications/:jobId`) — `GET`/`PUT`/`DELETE /api/jobs/{jobId}` plus the full rounds CRUD. `roundNumber` isn't auto-assigned, so the UI defaults it to `max(existing) + 1` rather than `length + 1` — the two differ once a middle round has been deleted.
 - **Create / edit job** ([JobFormModal.jsx](src/components/jobs/JobFormModal.jsx)) — `POST`/`PUT /api/jobs`. New jobs prefill `resumeUrl` from `defaultResumeUrl` on `/me`.
-- **Analytics** ([AnalyticsPage.jsx](src/pages/AnalyticsPage.jsx)) — `GET /api/jobs/stats` for the funnel and donut; the trend is derived like the dashboard's.
+- **Analytics** ([AnalyticsPage.jsx](src/pages/AnalyticsPage.jsx)) — `GET /api/jobs/stats` for the funnel and donut, `GET /api/jobs/trend` for the trend — same pair as the dashboard.
 - **Settings** ([SettingsPage.jsx](src/pages/SettingsPage.jsx)) — `PUT /api/users/me`, change-password (only rendered when `provider === 'LOCAL'`), default-resume set/clear, logout and `logout-all`.
 - **App shell** ([AppShell.jsx](src/layouts/AppShell.jsx)) — the avatar menu opens the default-resume editor in a modal, so setting one never requires a detour to Settings mid-flow. It renders [DefaultResumeEditor.jsx](src/components/files/DefaultResumeEditor.jsx), the same component the Settings card uses, so the upload semantics can't drift between the two.
 
@@ -717,7 +717,7 @@ These live in `mockStats.js` and are rendered by `DashboardPage`/`AnalyticsPage`
 | Mock export | Status | Path |
 |---|---|---|
 | `UPCOMING_INTERVIEWS` | ✅ **live** | `GET /api/rounds/upcoming`, added for this widget. One request across all jobs, company/role flattened in, so no N+1. |
-| `WEEKLY_TREND` | ✅ **live, derived client-side** | `buildWeeklyTrend()` in [src/utils/dates.js](src/utils/dates.js) buckets the jobs list by `appliedDate` (falling back to `createdAt`) over the last 7 days. Comparison is on the `YYYY-MM-DD` prefix, so it never touches timezone conversion. No backend work needed. |
+| `WEEKLY_TREND` | ✅ **live, server-side** | `GET /api/jobs/trend?days=7` via `getJobTrend()` in [src/api/jobs.js](src/api/jobs.js). This was originally derived client-side by bucketing the jobs list; the endpoint replaced that, so the dashboard and Analytics no longer need the full list just to draw the trend. |
 | `RECENT_ACTIVITY` | ✅ **endpoint now exists** | `GET /api/activity` — a real append-only audit log, no longer derived. Swapping `buildActivityFeed(jobs)` for a fetch removes all three documented limitations at once (edit history, actual transitions, deleted-job events). Add a `JOB_DELETED` entry to `ACTIVITY_ACTIONS` when wiring it — see [Activity log](#activity-log). |
 
 The mock's `UPCOMING_INTERVIEWS` shape differed from the API's: it had `date` plus a preformatted `time` string (`"10:00 AM PST"`) and a `companyIcon`. The API gives one `roundDate` and no icon, so the dashboard formats the time via `formatDateTime()` and uses `CompanyAvatar`. The backend stores no timezone, so times render in the browser's local zone.

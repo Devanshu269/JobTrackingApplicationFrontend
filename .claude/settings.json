@@ -43,7 +43,14 @@
       "Bash(perl -0pi -e 's{^import \\\\{ useState, useEffect \\\\} from .react.\\\\n}{}m; s{\\\\n/\\\\*\\\\*\\\\n \\\\* React hook to fetch and cache.*\\\\Z}{\\\\n}s' src/api/files.js)",
       "Bash(git add *)",
       "Bash(git status *)",
-      "Bash(git reset *)"
+      "Bash(git reset *)",
+      "Bash(npm audit *)",
+      "Bash(npm outdated *)",
+      "Bash(perl -0pi -e ' *)",
+      "Bash(perl -0pi -e 's{\\\\nexport function getUserId\\\\\\(\\\\\\) \\\\{\\\\n.*?\\\\n\\\\}\\\\n}{\\\\n}s' src/utils/tokenStorage.js)",
+      "Bash(perl -0pi -e 's{\\\\n/\\\\*\\\\*\\\\n \\\\* Opens a file URL, resolving.*?\\\\n \\\\*/\\\\nexport async function resolveFileUrl\\\\\\(url\\\\\\) \\\\{\\\\n.*?\\\\n\\\\}\\\\n}{\\\\n}s' src/api/files.js)",
+      "Bash(VITE_API_BASE_URL= npx vite build --logLevel error)",
+      "Bash(cd ../JobTrackingApplicationBackend 2>/dev/null && grep -rn -B6 \"avatarUrl\" src/main/java/com/jobtracker/dto/*.java | grep -i \"avatarUrl\\\\|@Size\\\\|@URL\\\\|@Pattern\\\\|@NotBlank\\\\|class \" | head -20)"
     ],
     "additionalDirectories": [
       "/Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/dto",

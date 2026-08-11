@@ -1,6 +1,7 @@
-import { lazy, Suspense } from 'react'
+import { Suspense } from 'react'
 import { Route, Routes, Navigate } from 'react-router-dom'
 import { ProtectedRoute, PublicOnlyRoute, RootRedirect } from '@/routes/RouteGuards'
+import { lazyRoute } from '@/routes/lazyRoute'
 import { FullPageSpinner } from '@/components/ui/Spinner'
 
 /**
@@ -9,21 +10,22 @@ import { FullPageSpinner } from '@/components/ui/Spinner'
  * the dashboard, and vice versa.
  *
  * Pages are default exports; AppShell is named, hence the `.then` mapping that
- * `lazy()` needs to find a `default` key.
+ * `lazyRoute()` needs to find a `default` key.
  */
-const AppShell = lazy(() => import('@/layouts/AppShell').then((m) => ({ default: m.AppShell })))
+const AppShell = lazyRoute(() => import('@/layouts/AppShell').then((m) => ({ default: m.AppShell })))
 
-const LoginPage = lazy(() => import('@/pages/LoginPage'))
-const ExplorePage = lazy(() => import('@/pages/ExplorePage'))
-const ForgotPasswordPage = lazy(() => import('@/pages/ForgotPasswordPage'))
-const ResetPasswordPage = lazy(() => import('@/pages/ResetPasswordPage'))
-const OAuthRedirectPage = lazy(() => import('@/pages/OAuthRedirectPage'))
-const DashboardPage = lazy(() => import('@/pages/DashboardPage'))
-const ApplicationsPage = lazy(() => import('@/pages/ApplicationsPage'))
-const JobDetailPage = lazy(() => import('@/pages/JobDetailPage'))
-const AnalyticsPage = lazy(() => import('@/pages/AnalyticsPage'))
-const ActivityPage = lazy(() => import('@/pages/ActivityPage'))
-const SettingsPage = lazy(() => import('@/pages/SettingsPage'))
+const LoginPage = lazyRoute(() => import('@/pages/LoginPage'))
+const ExplorePage = lazyRoute(() => import('@/pages/ExplorePage'))
+const ForgotPasswordPage = lazyRoute(() => import('@/pages/ForgotPasswordPage'))
+const ResetPasswordPage = lazyRoute(() => import('@/pages/ResetPasswordPage'))
+const OAuthRedirectPage = lazyRoute(() => import('@/pages/OAuthRedirectPage'))
+const DashboardPage = lazyRoute(() => import('@/pages/DashboardPage'))
+const ApplicationsPage = lazyRoute(() => import('@/pages/ApplicationsPage'))
+const JobDetailPage = lazyRoute(() => import('@/pages/JobDetailPage'))
+const AnalyticsPage = lazyRoute(() => import('@/pages/AnalyticsPage'))
+const ActivityPage = lazyRoute(() => import('@/pages/ActivityPage'))
+const SettingsPage = lazyRoute(() => import('@/pages/SettingsPage'))
+const NotFoundPage = lazyRoute(() => import('@/pages/NotFoundPage'))
 
 export function AppRoutes() {
   return (
@@ -64,7 +66,7 @@ export function AppRoutes() {
         {/* Backward compat: old /dashboard → new route */}
         <Route path="/dashboard" element={<Navigate to="/JobJuggler/dashboard" replace />} />
 
-        <Route path="*" element={<RootRedirect />} />
+        <Route path="*" element={<NotFoundPage />} />
       </Routes>
     </Suspense>
   )

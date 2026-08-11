@@ -9,15 +9,24 @@ import { Field, Input } from '@/components/ui/Form'
 import { Alert } from '@/components/ui/Alert'
 import { DefaultResumeEditor } from '@/components/files/DefaultResumeEditor'
 
+/**
+ * Served from `public/avatars/`, not fetched from api.dicebear.com at render time.
+ *
+ * These are the exact same generated SVGs, vendored once — the signed-in UI shouldn't
+ * depend on a third party staying up, and the chosen URL is persisted to `avatarUrl`, so
+ * every stored profile would have carried a permanent link to someone else's service.
+ * Accounts that picked one before this change keep their dicebear URL until they choose
+ * again; both render fine.
+ */
 const PRESET_AVATARS = [
-  'https://api.dicebear.com/9.x/bottts/svg?seed=Felix&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/9.x/bottts/svg?seed=Aneka&backgroundColor=c0aede',
-  'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Jocelyn&backgroundColor=ffd5dc',
-  'https://api.dicebear.com/9.x/fun-emoji/svg?seed=Destiny&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Jack&backgroundColor=ffdfbf',
-  'https://api.dicebear.com/9.x/adventurer/svg?seed=Avery&backgroundColor=d1d4f9',
-  'https://api.dicebear.com/9.x/lorelei/svg?seed=Riley&backgroundColor=b6e3f4',
-  'https://api.dicebear.com/9.x/lorelei/svg?seed=Sara&backgroundColor=c0aede',
+  '/avatars/bottts-felix.svg',
+  '/avatars/bottts-aneka.svg',
+  '/avatars/fun-emoji-jocelyn.svg',
+  '/avatars/fun-emoji-destiny.svg',
+  '/avatars/adventurer-jack.svg',
+  '/avatars/adventurer-avery.svg',
+  '/avatars/lorelei-riley.svg',
+  '/avatars/lorelei-sara.svg',
 ]
 
 export default function SettingsPage() {

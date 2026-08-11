@@ -208,7 +208,7 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, on
           </Field>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Status" htmlFor="status" required error={fieldErrors.status}>
             <Select id="status" value={form.status} onChange={(e) => set('status', e.target.value)}>
               {Object.values(JOB_STATUSES).map((s) => (
@@ -233,7 +233,9 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, on
               ))}
             </Select>
           </Field>
+        </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Work type" htmlFor="jobType">
             <Select
               id="jobType"
@@ -248,9 +250,7 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, on
               ))}
             </Select>
           </Field>
-        </div>
 
-        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Location" htmlFor="location">
             <Input
               id="location"
@@ -259,7 +259,9 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, on
               placeholder="Remote · Bengaluru, India"
             />
           </Field>
+        </div>
 
+        <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Salary range" htmlFor="salaryRange">
             <Input
               id="salaryRange"
@@ -268,17 +270,17 @@ export function JobFormModal({ open, job, defaultResumeUrl, onClose, onSaved, on
               placeholder="20-25 LPA"
             />
           </Field>
-        </div>
 
-        <Field label="Job posting URL" htmlFor="jobUrl">
-          <Input
-            id="jobUrl"
-            type="url"
-            value={form.jobUrl ?? ''}
-            onChange={(e) => set('jobUrl', e.target.value)}
-            placeholder="https://…"
-          />
-        </Field>
+          <Field label="Job posting URL" htmlFor="jobUrl">
+            <Input
+              id="jobUrl"
+              type="url"
+              value={form.jobUrl ?? ''}
+              onChange={(e) => set('jobUrl', e.target.value)}
+              placeholder="https://…"
+            />
+          </Field>
+        </div>
 
         <div className="grid gap-4 sm:grid-cols-2">
           <Field label="Applied on" htmlFor="appliedDate">

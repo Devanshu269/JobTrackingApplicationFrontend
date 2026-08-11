@@ -38,16 +38,24 @@ break** — always check the port Vite prints.
 
 | Path | Guard | Purpose |
 |---|---|---|
-| `/` | — | Redirects to `/dashboard` or `/login` based on session |
+| `/` | — | Redirects to the dashboard or `/login` based on session |
 | `/login` | public-only | Login **and** signup (one page, toggled) |
 | `/explore` | public | Marketing page — Features / How it works / Integrations as anchor sections |
 | `/forgot-password` | public | Requests a reset email |
 | `/reset-password` | public | Landing page for the reset email link (`?token=`) |
 | `/oauth2/redirect` | public | Google/GitHub handoff — exchanges `?code=` for tokens |
-| `/dashboard` | protected | Placeholder for the actual app |
-| `*` | — | Falls back to the root redirect |
+| `/JobJuggler` | protected | App shell (sidebar + top bar); redirects to `dashboard` |
+| `/JobJuggler/dashboard` | protected | Stat tiles, mini pipeline, upcoming interviews, recent activity |
+| `/JobJuggler/applications` | protected | Kanban / table of every application. Accepts `?q=` from the top-bar search |
+| `/JobJuggler/applications/:jobId` | protected | One application plus its interview rounds |
+| `/JobJuggler/analytics` | protected | Funnel, status donut, weekly trend |
+| `/JobJuggler/activity` | protected | Paginated audit log from `GET /api/activity` |
+| `/JobJuggler/settings` | protected | Profile, password, notification preferences, default resume |
+| `/dashboard` | — | Legacy redirect → `/JobJuggler/dashboard` |
+| `*` | — | 404 page |
 
-Guards live in [src/routes/RouteGuards.jsx](src/routes/RouteGuards.jsx).
+The table lives in [src/routes/AppRoutes.jsx](src/routes/AppRoutes.jsx); guards are in
+[src/routes/RouteGuards.jsx](src/routes/RouteGuards.jsx).
 The intended flow, in the user's words: **no session → `/login`; valid refresh token → main page.**
 
 ---
@@ -62,9 +70,12 @@ src/
 ├─ main.jsx                    mounts <App />
 ├─ app/
 │  ├─ App.jsx                  composition root — boundary → router → auth
-│  └─ ErrorBoundary.jsx        unexpected-crash fallback, wraps everything
+│  ├─ ErrorBoundary.jsx        unexpected-crash fallback, wraps everything
+│  └─ ConfigError.jsx          shown instead of the app on a bad build (see config/)
+├─ config/env.js               validates VITE_* at startup, reports misconfiguration
 ├─ routes/
-│  ├─ AppRoutes.jsx            the route table; every page is lazy()
+│  ├─ AppRoutes.jsx            the route table; every page is lazyRoute()
+│  ├─ lazyRoute.js             lazy() that reloads once when a chunk 404s after a deploy
 │  ├─ RouteGuards.jsx          ProtectedRoute / PublicOnlyRoute / RootRedirect
 │  └─ ScrollToHash.jsx         anchor scrolling on the marketing page
 ├─ layouts/

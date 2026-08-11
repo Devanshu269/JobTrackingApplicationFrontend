@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate, useSearchParams } from 'react-router-dom'
 import { JOB_STATUSES, JOB_TYPES, JOB_PRIORITIES } from '@/constants/jobs'
 import { KanbanBoard } from '@/components/jobs/KanbanBoard'
 import { JobTable } from '@/components/jobs/JobTable'
@@ -19,8 +19,17 @@ export default function ApplicationsPage() {
   const [error, setError] = useState('')
   const [pendingJobId, setPendingJobId] = useState(null)
 
+  // The shell's top-bar search navigates here with `?q=…`; adopt it on arrival and whenever
+  // it changes, so searching again from the top bar while already on this page still works.
+  const [searchParams] = useSearchParams()
+  const urlQuery = searchParams.get('q') ?? ''
+
   const [view, setView] = useState('kanban') // 'kanban' | 'table'
-  const [searchQuery, setSearchQuery] = useState('')
+  const [searchQuery, setSearchQuery] = useState(urlQuery)
+
+  useEffect(() => {
+    setSearchQuery(urlQuery)
+  }, [urlQuery])
   const [statusFilter, setStatusFilter] = useState('')
   const [typeFilter, setTypeFilter] = useState('')
   const [priorityFilter, setPriorityFilter] = useState('')
@@ -28,8 +37,9 @@ export default function ApplicationsPage() {
   const [formOpen, setFormOpen] = useState(false)
   const [editingJob, setEditingJob] = useState(null)
 
-  // Debounced so typing in the search box doesn't fire a request per keystroke.
-  const [debouncedSearch, setDebouncedSearch] = useState('')
+  // Debounced so typing in the search box doesn't fire a request per keystroke. Seeded from
+  // the URL so arriving with `?q=` loads filtered results directly, not empty-then-filtered.
+  const [debouncedSearch, setDebouncedSearch] = useState(urlQuery.trim())
   useEffect(() => {
     const id = setTimeout(() => setDebouncedSearch(searchQuery.trim()), 300)
     return () => clearTimeout(id)

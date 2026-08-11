@@ -75,8 +75,20 @@ export function AppShell() {
   const [resumeRemoving, setResumeRemoving] = useState(false)
   const [resumeRemoveError, setResumeRemoveError] = useState('')
   const [apiNotifications, setApiNotifications] = useState([])
+  const [search, setSearch] = useState('')
 
   const resolvedResumeName = useResolvedFilename(user?.defaultResumeUrl, 'Resume.pdf')
+
+  /**
+   * The shell doesn't filter anything itself — it hands the term to the Applications page
+   * as `?q=`, which already owns the debounce and the server-side query params.
+   */
+  function handleSearchSubmit(e) {
+    e.preventDefault()
+    const term = search.trim()
+    navigate(term ? `/JobJuggler/applications?q=${encodeURIComponent(term)}` : '/JobJuggler/applications')
+    setSidebarOpen(false)
+  }
 
   useEffect(() => {
     if (!user) return
@@ -226,8 +238,12 @@ export function AppShell() {
             </svg>
           </button>
 
-          {/* Search (placeholder) */}
-          <div className="relative hidden flex-1 sm:block sm:max-w-md">
+          {/* Search — hands off to the Applications page, which owns the actual filtering. */}
+          <form
+            role="search"
+            onSubmit={handleSearchSubmit}
+            className="relative hidden flex-1 sm:block sm:max-w-md"
+          >
             <svg
               viewBox="0 0 16 16"
               className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-muted"
@@ -240,11 +256,14 @@ export function AppShell() {
               <path d="M14 14l-3.5-3.5" />
             </svg>
             <input
-              type="text"
+              type="search"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              aria-label="Search jobs and companies"
               placeholder="Search jobs, companies…"
               className="w-full rounded-lg border border-border/60 bg-surface-alt/50 py-2 pl-9 pr-4 text-sm text-text placeholder:text-text-muted/50 transition-all duration-200 focus:border-primary/50 focus:outline-none focus:ring-1 focus:ring-primary/25"
             />
-          </div>
+          </form>
 
           {/* Right side */}
           <div className="ml-auto flex items-center gap-3">
