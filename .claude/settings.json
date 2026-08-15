@@ -50,7 +50,17 @@
       "Bash(perl -0pi -e 's{\\\\nexport function getUserId\\\\\\(\\\\\\) \\\\{\\\\n.*?\\\\n\\\\}\\\\n}{\\\\n}s' src/utils/tokenStorage.js)",
       "Bash(perl -0pi -e 's{\\\\n/\\\\*\\\\*\\\\n \\\\* Opens a file URL, resolving.*?\\\\n \\\\*/\\\\nexport async function resolveFileUrl\\\\\\(url\\\\\\) \\\\{\\\\n.*?\\\\n\\\\}\\\\n}{\\\\n}s' src/api/files.js)",
       "Bash(VITE_API_BASE_URL= npx vite build --logLevel error)",
-      "Bash(cd ../JobTrackingApplicationBackend 2>/dev/null && grep -rn -B6 \"avatarUrl\" src/main/java/com/jobtracker/dto/*.java | grep -i \"avatarUrl\\\\|@Size\\\\|@URL\\\\|@Pattern\\\\|@NotBlank\\\\|class \" | head -20)"
+      "Bash(cd ../JobTrackingApplicationBackend 2>/dev/null && grep -rn -B6 \"avatarUrl\" src/main/java/com/jobtracker/dto/*.java | grep -i \"avatarUrl\\\\|@Size\\\\|@URL\\\\|@Pattern\\\\|@NotBlank\\\\|class \" | head -20)",
+      "Bash(grep -n '^#\\\\{1,3\\\\} ' BACKEND_INTEGRATION.md)",
+      "Bash(grep -n '^#\\\\{1,3\\\\} ' README.md)",
+      "Bash(npx esbuild *)",
+      "Bash(sed -i '' -e 's/const code = \\(currency || '\\\\''USD'\\\\''\\)/const code = \\(currency || '\\\\''INR'\\\\''\\)/' -e 's/export function currencySymbol\\(currency = '\\\\''USD'\\\\''\\)/export function currencySymbol\\(currency = '\\\\''INR'\\\\''\\)/' -e 's/export function toMinorUnits\\(value, currency = '\\\\''USD'\\\\''\\)/export function toMinorUnits\\(value, currency = '\\\\''INR'\\\\''\\)/' src/constants/support.js)",
+      "Bash(sed -i '' -e 's/?? tiers\\\\[0\\\\]?.currency ?? '\\\\''USD'\\\\''/?? tiers[0]?.currency ?? '\\\\''INR'\\\\''/' -e 's/placeholder=\"25\"/placeholder=\"250\"/' src/components/support/SupportModal.jsx)",
+      "Bash(grep -rn '\\\\$1\\\\|\\\\$5\\\\|\\\\$10\\\\|USD' README.md BACKEND_INTEGRATION.md)",
+      "Bash(grep -c '^```' SUPPORT_PAYMENTS_BACKEND.md)",
+      "Bash(git mv *)",
+      "Bash(node -e ' *)",
+      "Bash(awk -F/ '{if\\($1!=p\\){print \"\\\\n\"$1\"/\";p=$1}; print \"   \"$2}')"
     ],
     "additionalDirectories": [
       "/Users/n1k0zy/Documents/GitHub/JobTrackingApplication/JobTrackingApplicationBackend/src/main/java/com/jobtracker/dto",

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { Modal } from '@/components/ui/Modal'
-import { Field, Input, Select, Textarea } from '@/components/ui/Form'
+import { Field, Input, Select, Textarea } from '@/components/ui/Fields'
 import { Button } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Alert'
 import { JOB_STATUSES, JOB_TYPES, JOB_PRIORITIES } from '@/constants/jobs'

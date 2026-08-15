@@ -1,7 +1,7 @@
 import { useState, useCallback } from 'react'
 import { KANBAN_COLUMNS, JOB_STATUSES, JOB_TYPES, getStatusAccent } from '@/constants/jobs'
-import { StatusBadge } from '@/components/ui/StatusBadge'
-import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
+import { StatusBadge } from '@/components/jobs/StatusBadge'
+import { CompanyAvatar } from '@/components/jobs/CompanyAvatar'
 import { formatDateShort } from '@/utils/dates'
 
 /**

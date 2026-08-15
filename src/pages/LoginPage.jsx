@@ -9,7 +9,7 @@ import { ApertureLens } from '@/components/marketing/ApertureLens'
 import { TextField } from '@/components/ui/TextField'
 import { Button, ButtonLink } from '@/components/ui/Button'
 import { Alert } from '@/components/ui/Alert'
-import { GoogleIcon, GitHubIcon } from '@/components/ui/OAuthIcons'
+import { GoogleIcon, GitHubIcon } from '@/components/auth/OAuthIcons'
 import { API_BASE_URL } from '@/config/env'
 
 const MODES = [

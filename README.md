@@ -84,11 +84,14 @@ src/
 │  └─ MarketingNav.jsx         public top nav (explore + login)
 ├─ pages/                      one file per route, default-exported
 ├─ components/
-│  ├─ ui/                      Button, TextField, Modal, Form, Alert, Spinner, …
-│  ├─ jobs/                    JobTable, KanbanBoard, JobFormModal, RoundFormModal
+│  ├─ ui/                      Button, Modal, Alert, Spinner, Logo, Fields, TextField
+│  ├─ auth/                    OAuthIcons
+│  ├─ jobs/                    JobTable, KanbanBoard, JobFormModal, RoundFormModal,
+│  │                           StatusBadge, CompanyAvatar
+│  ├─ dashboard/               StatCard
 │  ├─ files/                   FileDropZone, DefaultResumeEditor
 │  ├─ notifications/           NotificationBell
-│  └─ marketing/               ApertureLens, FeatureShowcase, illustrations
+│  └─ marketing/               ApertureLens, FeatureShowcase, Illustrations, Reveal
 ├─ api/
 │  ├─ client.js                axios instance, bearer header, refresh-on-401
 │  ├─ jobs.js                  jobs + rounds + activity + stats
@@ -101,7 +104,7 @@ src/
 └─ styles/index.css            design tokens + keyframes (single source of truth)
 ```
 
-Two rules keep this from drifting:
+Three rules keep this from drifting:
 
 **Imports are absolute via `@/`** — `@/api/client`, never `../../lib/api`. The alias is
 declared in [vite.config.js](vite.config.js) for the bundler and [jsconfig.json](jsconfig.json)
@@ -109,6 +112,17 @@ for the editor; change one and you must change the other.
 
 **`api/` must not export React.** Anything with a hook in it belongs in `hooks/` — that's why
 [useResolvedFilename.js](src/hooks/useResolvedFilename.js) lives outside `api/files.js`.
+
+**`components/ui/` must not know the domain.** Its files import React and nothing else — no
+`@/constants/jobs`, no `@/api/*`. The moment a component needs to know what a job status is or
+what a company is, it belongs in a feature folder. `StatusBadge` and `CompanyAvatar` used to sit
+in `ui/` and both imported job constants, which is what made `ui/` a dumping ground rather than
+a design system. A single-consumer component also belongs with its feature, not in `ui/` — one-file
+folders like `dashboard/` and `notifications/` are correct, not overkill. Check the rule with:
+
+```bash
+grep -rn "^import" src/components/ui/    # should mention only react / react-dom
+```
 
 Every route is code-split in [src/routes/AppRoutes.jsx](src/routes/AppRoutes.jsx), so a visitor
 landing on `/explore` never downloads the dashboard. Adding a page means adding one `lazy()`

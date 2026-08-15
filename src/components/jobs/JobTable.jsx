@@ -1,6 +1,6 @@
 import { useState, useMemo } from 'react'
 import { JOB_STATUSES, JOB_TYPES, getStatusAccent } from '@/constants/jobs'
-import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
+import { CompanyAvatar } from '@/components/jobs/CompanyAvatar'
 import { formatDate } from '@/utils/dates'
 
 /**

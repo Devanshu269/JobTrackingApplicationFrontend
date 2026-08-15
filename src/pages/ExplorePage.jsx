@@ -1,13 +1,13 @@
 import { Link } from 'react-router-dom'
 import { MarketingNav } from '@/layouts/MarketingNav'
-import { Reveal } from '@/components/ui/Reveal'
+import { Reveal } from '@/components/marketing/Reveal'
 import { Logo } from '@/components/ui/Logo'
 import {
   KanbanIllustration,
   RemindersIllustration,
   AnalyticsIllustration,
   DocumentsIllustration,
-} from '@/components/marketing/illustrations'
+} from '@/components/marketing/Illustrations'
 
 // Placeholder marketing copy — swap for the real thing before launch.
 const FEATURES = [

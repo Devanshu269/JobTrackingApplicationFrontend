@@ -4,7 +4,7 @@ import {
   RemindersIllustration,
   AnalyticsIllustration,
   DocumentsIllustration,
-} from '@/components/marketing/illustrations'
+} from '@/components/marketing/Illustrations'
 
 const SLIDE_MS = 7000
 

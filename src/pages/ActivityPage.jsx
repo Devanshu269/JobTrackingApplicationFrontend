@@ -5,7 +5,7 @@ import { mapApiActivity, describeActivity, ACTIVITY_ACTIONS } from '@/utils/acti
 import { JOB_STATUSES } from '@/constants/jobs'
 import { getApiErrorMessage } from '@/api/client'
 import { formatRelative, formatDateTime } from '@/utils/dates'
-import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
+import { CompanyAvatar } from '@/components/jobs/CompanyAvatar'
 import { Alert } from '@/components/ui/Alert'
 
 const PAGE_SIZE = 25

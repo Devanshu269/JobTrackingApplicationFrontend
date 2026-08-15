@@ -5,7 +5,7 @@ import { updateProfile, changePassword, updatePreferences } from '@/api/user'
 import { getApiErrorMessage, getApiFieldErrors } from '@/api/client'
 import { checkPassword, PASSWORD_RULES } from '@/utils/validation'
 import { Button } from '@/components/ui/Button'
-import { Field, Input } from '@/components/ui/Form'
+import { Field, Input } from '@/components/ui/Fields'
 import { Alert } from '@/components/ui/Alert'
 import { DefaultResumeEditor } from '@/components/files/DefaultResumeEditor'
 

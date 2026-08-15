@@ -6,8 +6,8 @@ import { listJobs, getJobStats, listUpcomingRounds, listActivity, getJobTrend } 
 import { getApiErrorMessage } from '@/api/client'
 import { formatDateTime, formatRelative } from '@/utils/dates'
 import { describeActivity, ACTIVITY_ACTIONS } from '@/utils/activity'
-import { StatCard } from '@/components/ui/StatCard'
-import { CompanyAvatar } from '@/components/ui/CompanyAvatar'
+import { StatCard } from '@/components/dashboard/StatCard'
+import { CompanyAvatar } from '@/components/jobs/CompanyAvatar'
 import { Alert } from '@/components/ui/Alert'
 
 export default function DashboardPage() {

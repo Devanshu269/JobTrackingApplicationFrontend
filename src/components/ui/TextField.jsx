@@ -23,7 +23,16 @@ function AlertIcon() {
   )
 }
 
-/** status: 'valid' | 'invalid' | undefined — drives the border and the icon. */
+/**
+ * The auth-page input — login, signup, forgot/reset password.
+ *
+ * Larger than the app's everyday control and sized in `wide:`/`ultra:` steps, because the login
+ * page must not scroll at any breakpoint. Use [Fields](./Fields.jsx)' `Field` + `Input` behind
+ * the login instead; see that file for the full split.
+ *
+ * `status: 'valid' | 'invalid' | undefined` drives the border and the icon — and the aperture
+ * lens above the form reads the same value, so changing its meaning here changes the mascot.
+ */
 export function TextField({
   label,
   labelAccessory,
