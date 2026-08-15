@@ -198,7 +198,6 @@ Working (Fully Integrated with Spring Boot backend):
 
 Caveats:
 - The password rules in [src/utils/validation.js:17](src/utils/validation.js#L17) are a client-side mirroring of the backend. They must stay in sync with the Java `AuthService` constraints.
-- `design-preview/` is a gitignored scratch folder from the original UI palette comparisons and is safe to delete.
 
 ---
 

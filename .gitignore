@@ -31,3 +31,6 @@ dist-ssr
 
 # Scratch design comparisons — safe to delete
 design-preview/
+
+# Claude Code local tooling config — not part of the project
+.claude/
